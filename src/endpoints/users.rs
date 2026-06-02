@@ -1,16 +1,12 @@
 use crate::client::Client;
 use crate::error::Result;
-use crate::http::{check_status, json};
+use crate::http::json;
 use crate::models::{User, UserListParams};
 
 impl Client {
     /// Public list of users, sorted by metrics.
     pub async fn users(&self, params: UserListParams) -> Result<Vec<User>> {
-        self.maybe_proactive_refresh().await;
-        let mut req = self
-            .http
-            .get(format!("{}/users", self.base_url))
-            .headers(self.headers().await);
+        let mut req = self.http.get(format!("{}/users", self.base_url));
         if let Some(sort) = params.sort {
             req = req.query(&[("sort", sort.as_str())]);
         }
@@ -20,7 +16,7 @@ impl Client {
         if let Some(per_page) = params.per_page {
             req = req.query(&[("per_page", per_page)]);
         }
-        let resp = check_status(req.send().await?).await?;
+        let resp = self.send(req).await?;
         json(resp).await
     }
 
@@ -29,12 +25,8 @@ impl Client {
         if !self.has_access_token().await {
             return Err(crate::Error::Unauthenticated);
         }
-        self.maybe_proactive_refresh().await;
-        let req = self
-            .http
-            .get(format!("{}/user", self.base_url))
-            .headers(self.headers().await);
-        let resp = check_status(req.send().await?).await?;
+        let req = self.http.get(format!("{}/user", self.base_url));
+        let resp = self.send(req).await?;
         json(resp).await
     }
 }

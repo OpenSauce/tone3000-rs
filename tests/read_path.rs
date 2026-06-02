@@ -1,5 +1,5 @@
 use tone3000::{Client, SearchParams};
-use wiremock::matchers::{method, path};
+use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[tokio::test]
@@ -8,6 +8,8 @@ async fn search_parses_fixture_and_sends_auth() {
     let body = include_str!("fixtures/search.json");
     Mock::given(method("GET"))
         .and(path("/tones/search"))
+        // App-key mode must send the publishable key as the bearer.
+        .and(header("authorization", "Bearer t3k_pub_x"))
         .respond_with(ResponseTemplate::new(200).set_body_string(body))
         .mount(&server)
         .await;
@@ -46,6 +48,8 @@ async fn download_model_fetches_bytes_with_bearer() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/files/a.nam"))
+        // Bearer mode must attach the user access token to the file download.
+        .and(header("authorization", "Bearer user_tok"))
         .respond_with(ResponseTemplate::new(200).set_body_bytes(vec![1u8, 2, 3, 4]))
         .mount(&server)
         .await;
@@ -139,4 +143,42 @@ async fn created_returns_tones_with_token() {
         .build();
     let res = client.created(SearchParams::default()).await.unwrap();
     assert_eq!(res.items[0].name, "Mine");
+}
+
+#[tokio::test]
+async fn forbidden_maps_to_forbidden_error() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/tones/search"))
+        .respond_with(ResponseTemplate::new(403))
+        .mount(&server)
+        .await;
+
+    let client = Client::builder("t3k_pub_x").base_url(server.uri()).build();
+    let err = client.search(SearchParams::default()).await.unwrap_err();
+    assert!(matches!(err, tone3000::Error::Forbidden));
+}
+
+#[tokio::test]
+async fn download_model_json_rejects_non_utf8() {
+    use tone3000::Model;
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/files/bad.nam"))
+        // 0xFF is never valid UTF-8.
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(vec![0xFFu8, 0xFE]))
+        .mount(&server)
+        .await;
+
+    let client = Client::builder("t3k_pub_x").base_url(server.uri()).build();
+    let model = Model {
+        id: "m4".into(),
+        name: String::new(),
+        model_url: format!("{}/files/bad.nam", server.uri()),
+        tone_id: None,
+        format: None,
+    };
+
+    let err = client.download_model_json(&model).await.unwrap_err();
+    assert!(matches!(err, tone3000::Error::Utf8(_)));
 }

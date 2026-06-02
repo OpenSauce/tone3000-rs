@@ -3,7 +3,8 @@ use std::sync::Arc;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use tokio::sync::Mutex;
 
-use crate::error::Result;
+use crate::error::{Error, Result};
+use crate::http::check_status;
 use crate::models::Tokens;
 use crate::oauth::parse_token_response;
 
@@ -30,6 +31,9 @@ pub struct Client {
     pub(crate) base_url: String,
     pub(crate) pubkey: String,
     pub(crate) tokens: Arc<Mutex<TokenState>>,
+    /// Serializes token refreshes so concurrent requests don't all POST `/oauth/token`
+    /// and invalidate each other's rotated refresh tokens.
+    pub(crate) refresh_lock: Arc<Mutex<()>>,
     pub(crate) auto_refresh: bool,
     pub(crate) on_tokens_changed: Option<TokensChanged>,
 }
@@ -67,6 +71,25 @@ impl Client {
         h
     }
 
+    /// Snapshot of the current access token, used to detect refreshes by other tasks.
+    async fn current_access(&self) -> Option<String> {
+        self.tokens.lock().await.access.clone()
+    }
+
+    /// True if a refresh token is stored.
+    async fn has_refresh_token(&self) -> bool {
+        self.tokens.lock().await.refresh.is_some()
+    }
+
+    /// True if the access token's known expiry has passed.
+    async fn is_expired(&self) -> bool {
+        let guard = self.tokens.lock().await;
+        matches!(
+            (guard.access.as_ref(), guard.expires_at),
+            (Some(_), Some(exp)) if now_unix() >= exp
+        )
+    }
+
     /// Returns true if auto-refresh is enabled and the access token is at/near expiry.
     pub(crate) async fn needs_proactive_refresh(&self) -> bool {
         if !self.auto_refresh {
@@ -80,11 +103,61 @@ impl Client {
         }
     }
 
-    /// Refresh proactively if needed; ignore errors so the caller still attempts the request.
-    pub(crate) async fn maybe_proactive_refresh(&self) {
-        if self.needs_proactive_refresh().await {
-            let _ = self.refresh().await;
+    /// Refresh proactively if the token is near expiry. Serialized so racing requests
+    /// don't all refresh at once. Only surfaces an error if the token is already expired;
+    /// otherwise the (still-valid) request is allowed to proceed.
+    pub(crate) async fn maybe_proactive_refresh(&self) -> Result<()> {
+        if !self.needs_proactive_refresh().await {
+            return Ok(());
         }
+        let _guard = self.refresh_lock.lock().await;
+        // Another task may have refreshed while we waited for the lock.
+        if !self.needs_proactive_refresh().await {
+            return Ok(());
+        }
+        match self.refresh_locked().await {
+            Ok(_) => Ok(()),
+            Err(e) if self.is_expired().await => Err(e),
+            Err(_) => Ok(()),
+        }
+    }
+
+    /// Execute an authenticated request, applying auth headers, proactively refreshing
+    /// near expiry, and — when `auto_refresh` is set — reactively refreshing once and
+    /// retrying on a `401`.
+    pub(crate) async fn send(&self, req: reqwest::RequestBuilder) -> Result<reqwest::Response> {
+        self.maybe_proactive_refresh().await?;
+
+        // Keep a clone for a possible retry (None for non-cloneable streaming bodies).
+        let retry = req.try_clone();
+        let used = self.current_access().await;
+        let resp = req.headers(self.headers().await).send().await?;
+
+        match check_status(resp).await {
+            Err(Error::Unauthorized) if self.auto_refresh && self.has_refresh_token().await => {
+                self.reactive_refresh(used).await?;
+                match retry {
+                    Some(rb) => {
+                        let resp = rb.headers(self.headers().await).send().await?;
+                        check_status(resp).await
+                    }
+                    // Body wasn't cloneable; surface the original 401.
+                    None => Err(Error::Unauthorized),
+                }
+            }
+            other => other,
+        }
+    }
+
+    /// Refresh once on a 401, serialized and only if no other task already rotated the
+    /// token we just used.
+    async fn reactive_refresh(&self, used: Option<String>) -> Result<()> {
+        let _guard = self.refresh_lock.lock().await;
+        // If the stored access token already changed, another task refreshed; reuse it.
+        if self.current_access().await == used {
+            self.refresh_locked().await?;
+        }
+        Ok(())
     }
 }
 
@@ -107,12 +180,22 @@ impl Client {
     }
 
     /// Refresh using the stored refresh token, updating stored tokens.
+    ///
+    /// Serialized via the refresh lock so concurrent callers don't race the token
+    /// rotation endpoint.
     pub async fn refresh(&self) -> Result<Tokens> {
+        let _guard = self.refresh_lock.lock().await;
+        self.refresh_locked().await
+    }
+
+    /// Refresh without taking the refresh lock. Callers that already hold it
+    /// (proactive/reactive refresh) use this to avoid re-entrant locking.
+    async fn refresh_locked(&self) -> Result<Tokens> {
         let refresh = {
             let guard = self.tokens.lock().await;
             guard.refresh.clone()
         };
-        let refresh = refresh.ok_or(crate::Error::Unauthenticated)?;
+        let refresh = refresh.ok_or(Error::Unauthenticated)?;
         let form = [
             ("grant_type", "refresh_token"),
             ("refresh_token", refresh.as_str()),
@@ -129,9 +212,9 @@ impl Client {
             .form(form)
             .send()
             .await?;
-        let ok = resp.status().is_success();
+        let status = resp.status().as_u16();
         let body = resp.bytes().await?;
-        let tokens = parse_token_response(ok, &body)?;
+        let tokens = parse_token_response(status, &body)?;
         self.store_tokens(&tokens).await;
         Ok(tokens)
     }
@@ -166,6 +249,7 @@ pub struct ClientBuilder {
     base_url: String,
     access: Option<String>,
     refresh: Option<String>,
+    expires_at: Option<u64>,
     auto_refresh: bool,
     on_tokens_changed: Option<TokensChanged>,
 }
@@ -177,6 +261,7 @@ impl ClientBuilder {
             base_url: DEFAULT_BASE_URL.to_string(),
             access: None,
             refresh: None,
+            expires_at: None,
             auto_refresh: false,
             on_tokens_changed: None,
         }
@@ -197,6 +282,16 @@ impl ClientBuilder {
     /// Set the refresh token used by `refresh()` and auto-refresh.
     pub fn refresh_token(mut self, token: impl Into<String>) -> Self {
         self.refresh = Some(token.into());
+        self
+    }
+
+    /// Seed the access token's expiry as Unix-epoch seconds.
+    ///
+    /// Required for proactive [`auto_refresh`](Self::auto_refresh) to fire when
+    /// restoring a session from persisted tokens — otherwise the client has no
+    /// idea when the access token expires and will only refresh reactively on a 401.
+    pub fn expires_at(mut self, unix_secs: u64) -> Self {
+        self.expires_at = Some(unix_secs);
         self
     }
 
@@ -224,8 +319,9 @@ impl ClientBuilder {
             tokens: Arc::new(Mutex::new(TokenState {
                 access: self.access,
                 refresh: self.refresh,
-                expires_at: None,
+                expires_at: self.expires_at,
             })),
+            refresh_lock: Arc::new(Mutex::new(())),
             auto_refresh: self.auto_refresh,
             on_tokens_changed: self.on_tokens_changed,
         }

@@ -55,8 +55,11 @@ struct OauthError {
 }
 
 /// Parse a `/oauth/token` response body into `Tokens`, mapping error bodies.
-pub(crate) fn parse_token_response(status_ok: bool, body: &[u8]) -> Result<Tokens> {
-    if status_ok {
+///
+/// `status` is the real HTTP status code; on a non-2xx response with an
+/// unrecognized body it is preserved in [`Error::Status`] rather than guessed.
+pub(crate) fn parse_token_response(status: u16, body: &[u8]) -> Result<Tokens> {
+    if (200..300).contains(&status) {
         Ok(serde_json::from_slice(body)?)
     } else if let Ok(e) = serde_json::from_slice::<OauthError>(body) {
         Err(Error::Oauth {
@@ -65,7 +68,7 @@ pub(crate) fn parse_token_response(status_ok: bool, body: &[u8]) -> Result<Token
         })
     } else {
         Err(Error::Status {
-            code: 400,
+            code: status,
             body: String::from_utf8_lossy(body).into_owned(),
         })
     }
@@ -94,7 +97,13 @@ mod tests {
 
     #[test]
     fn parse_token_response_maps_error_body() {
-        let err = parse_token_response(false, br#"{"error":"invalid_grant"}"#).unwrap_err();
+        let err = parse_token_response(400, br#"{"error":"invalid_grant"}"#).unwrap_err();
         assert!(matches!(err, Error::Oauth { error, .. } if error == "invalid_grant"));
+    }
+
+    #[test]
+    fn parse_token_response_preserves_real_status() {
+        let err = parse_token_response(503, b"upstream down").unwrap_err();
+        assert!(matches!(err, Error::Status { code: 503, .. }));
     }
 }

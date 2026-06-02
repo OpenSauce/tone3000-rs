@@ -4,41 +4,31 @@ use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 use crate::client::Client;
 use crate::error::Result;
-use crate::http::{check_status, json};
+use crate::http::json;
 use crate::models::Model;
 
 impl Client {
     /// List the models belonging to a tone.
     pub async fn models(&self, tone_id: &str) -> Result<Vec<Model>> {
-        self.maybe_proactive_refresh().await;
         let req = self
             .http
             .get(format!("{}/models", self.base_url))
-            .query(&[("tone_id", tone_id)])
-            .headers(self.headers().await);
-        let resp = check_status(req.send().await?).await?;
+            .query(&[("tone_id", tone_id)]);
+        let resp = self.send(req).await?;
         json(resp).await
     }
 
     /// Fetch a single model by id.
     pub async fn model(&self, id: &str) -> Result<Model> {
-        self.maybe_proactive_refresh().await;
-        let req = self
-            .http
-            .get(format!("{}/models/{id}", self.base_url))
-            .headers(self.headers().await);
-        let resp = check_status(req.send().await?).await?;
+        let req = self.http.get(format!("{}/models/{id}", self.base_url));
+        let resp = self.send(req).await?;
         json(resp).await
     }
 
     /// Download a model's file into memory.
     pub async fn download_model(&self, model: &Model) -> Result<Bytes> {
-        self.maybe_proactive_refresh().await;
-        let req = self
-            .http
-            .get(&model.model_url)
-            .headers(self.headers().await);
-        let resp = check_status(req.send().await?).await?;
+        let req = self.http.get(&model.model_url);
+        let resp = self.send(req).await?;
         Ok(resp.bytes().await?)
     }
 
@@ -59,12 +49,8 @@ impl Client {
     where
         W: AsyncWrite + Unpin,
     {
-        self.maybe_proactive_refresh().await;
-        let req = self
-            .http
-            .get(&model.model_url)
-            .headers(self.headers().await);
-        let resp = check_status(req.send().await?).await?;
+        let req = self.http.get(&model.model_url);
+        let resp = self.send(req).await?;
         let mut stream = resp.bytes_stream();
         let mut written: u64 = 0;
         while let Some(chunk) = stream.next().await {
