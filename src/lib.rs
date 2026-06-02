@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 mod client;
+mod endpoints;
 mod error;
 mod http;
 
