@@ -200,7 +200,7 @@ impl ClientBuilder {
         self
     }
 
-    /// Enable transparent refresh-on-expiry/401.
+    /// Enable transparent proactive token refresh shortly before the access token expires.
     pub fn auto_refresh(mut self, enabled: bool) -> Self {
         self.auto_refresh = enabled;
         self
