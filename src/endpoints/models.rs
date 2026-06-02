@@ -42,6 +42,18 @@ impl Client {
         Ok(resp.bytes().await?)
     }
 
+    /// Download a model's `.nam` file as a JSON string.
+    ///
+    /// Convenience over [`Client::download_model`] for the in-memory path: the
+    /// returned `String` can be handed straight to a NAM loader, e.g.
+    /// `nam_rs::NamModel::from_json_str(&client.download_model_json(&model).await?)`.
+    /// For the on-disk path, prefer [`Client::download_model_to`] into a file and
+    /// load it with `nam_rs::NamModel::from_file(path)`.
+    pub async fn download_model_json(&self, model: &Model) -> Result<String> {
+        let bytes = self.download_model(model).await?;
+        Ok(String::from_utf8(bytes.to_vec())?)
+    }
+
     /// Stream a model's file to `writer`, returning the number of bytes written.
     pub async fn download_model_to<W>(&self, model: &Model, writer: &mut W) -> Result<u64>
     where

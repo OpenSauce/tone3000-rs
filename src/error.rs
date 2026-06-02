@@ -36,6 +36,10 @@ pub enum Error {
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 
+    /// A downloaded body was expected to be UTF-8 text (e.g. `.nam` JSON) but was not.
+    #[error("invalid utf-8 in response body: {0}")]
+    Utf8(#[from] std::string::FromUtf8Error),
+
     /// OAuth token endpoint returned an error body.
     #[error("oauth error: {error}")]
     Oauth {

@@ -67,6 +67,30 @@ async fn download_model_fetches_bytes_with_bearer() {
 }
 
 #[tokio::test]
+async fn download_model_json_returns_string() {
+    use tone3000::Model;
+    let server = MockServer::start().await;
+    let nam_json = r#"{"version":"0.5.4","architecture":"WaveNet"}"#;
+    Mock::given(method("GET"))
+        .and(path("/files/c.nam"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(nam_json))
+        .mount(&server)
+        .await;
+
+    let client = Client::builder("t3k_pub_x").base_url(server.uri()).build();
+    let model = Model {
+        id: "m3".into(),
+        name: String::new(),
+        model_url: format!("{}/files/c.nam", server.uri()),
+        tone_id: None,
+        format: None,
+    };
+
+    let json = client.download_model_json(&model).await.unwrap();
+    assert_eq!(json, nam_json);
+}
+
+#[tokio::test]
 async fn download_model_to_streams_to_writer() {
     use tone3000::Model;
     let server = MockServer::start().await;
