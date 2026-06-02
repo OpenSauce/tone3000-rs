@@ -10,6 +10,7 @@ use crate::models::Model;
 impl Client {
     /// List the models belonging to a tone.
     pub async fn models(&self, tone_id: &str) -> Result<Vec<Model>> {
+        self.maybe_proactive_refresh().await;
         let req = self
             .http
             .get(format!("{}/models", self.base_url))
@@ -21,6 +22,7 @@ impl Client {
 
     /// Fetch a single model by id.
     pub async fn model(&self, id: &str) -> Result<Model> {
+        self.maybe_proactive_refresh().await;
         let req = self
             .http
             .get(format!("{}/models/{id}", self.base_url))
@@ -31,6 +33,7 @@ impl Client {
 
     /// Download a model's file into memory.
     pub async fn download_model(&self, model: &Model) -> Result<Bytes> {
+        self.maybe_proactive_refresh().await;
         let req = self
             .http
             .get(&model.model_url)
@@ -44,6 +47,7 @@ impl Client {
     where
         W: AsyncWrite + Unpin,
     {
+        self.maybe_proactive_refresh().await;
         let req = self
             .http
             .get(&model.model_url)

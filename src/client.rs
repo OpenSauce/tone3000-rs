@@ -66,6 +66,26 @@ impl Client {
         h.insert(AUTHORIZATION, self.auth_header().await);
         h
     }
+
+    /// Returns true if auto-refresh is enabled and the access token is at/near expiry.
+    pub(crate) async fn needs_proactive_refresh(&self) -> bool {
+        if !self.auto_refresh {
+            return false;
+        }
+        let guard = self.tokens.lock().await;
+        match (guard.access.as_ref(), guard.expires_at) {
+            // refresh when within 30s of expiry
+            (Some(_), Some(exp)) => now_unix() + 30 >= exp,
+            _ => false,
+        }
+    }
+
+    /// Refresh proactively if needed; ignore errors so the caller still attempts the request.
+    pub(crate) async fn maybe_proactive_refresh(&self) {
+        if self.needs_proactive_refresh().await {
+            let _ = self.refresh().await;
+        }
+    }
 }
 
 impl Client {

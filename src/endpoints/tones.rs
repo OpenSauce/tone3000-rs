@@ -6,6 +6,7 @@ use crate::models::{SearchParams, SearchResults, Tone};
 impl Client {
     /// Search & filter the public tone library. Heavily rate-limited.
     pub async fn search(&self, params: SearchParams) -> Result<SearchResults> {
+        self.maybe_proactive_refresh().await;
         let mut req = self
             .http
             .get(format!("{}/tones/search", self.base_url))
@@ -31,6 +32,7 @@ impl Client {
 
     /// Fetch a single tone by id.
     pub async fn tone(&self, id: &str) -> Result<Tone> {
+        self.maybe_proactive_refresh().await;
         let req = self
             .http
             .get(format!("{}/tones/{id}", self.base_url))

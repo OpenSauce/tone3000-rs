@@ -6,6 +6,7 @@ use crate::models::{User, UserListParams};
 impl Client {
     /// Public list of users, sorted by metrics.
     pub async fn users(&self, params: UserListParams) -> Result<Vec<User>> {
+        self.maybe_proactive_refresh().await;
         let mut req = self
             .http
             .get(format!("{}/users", self.base_url))

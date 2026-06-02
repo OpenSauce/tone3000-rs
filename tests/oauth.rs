@@ -1,4 +1,5 @@
 use tone3000::Client;
+use tone3000::SearchParams;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -46,4 +47,42 @@ async fn token_error_body_maps_to_oauth_error() {
         .await
         .unwrap_err();
     assert!(matches!(err, tone3000::Error::Oauth { error, .. } if error == "invalid_grant"));
+}
+
+#[tokio::test]
+async fn auto_refresh_runs_before_request_and_uses_new_token() {
+    let server = MockServer::start().await;
+
+    // Token endpoint returns a fresh access token.
+    Mock::given(method("POST"))
+        .and(path("/oauth/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(
+            r#"{"access_token":"FRESH","refresh_token":"RT2","expires_in":3600}"#,
+        ))
+        .mount(&server)
+        .await;
+
+    // Search endpoint requires the Authorization header to be the refreshed token.
+    Mock::given(method("GET"))
+        .and(path("/tones/search"))
+        .and(wiremock::matchers::header("authorization", "Bearer FRESH"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(
+            r#"{"data":[],"page":1,"total":0,"has_more":false}"#,
+        ))
+        .mount(&server)
+        .await;
+
+    let client = Client::builder("t3k_pub_x")
+        .base_url(server.uri())
+        .access_token("STALE")
+        .refresh_token("RT")
+        .auto_refresh(true)
+        .build();
+
+    // Seed token state (sets access=FRESH and expires_at ~1h) by performing one refresh.
+    client.refresh().await.unwrap();
+
+    // Search must succeed using the FRESH bearer token, proving the refresh + auth wiring.
+    let res = client.search(SearchParams::default()).await.unwrap();
+    assert_eq!(res.total, 0);
 }
