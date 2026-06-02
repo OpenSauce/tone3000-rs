@@ -3,3 +3,7 @@
 //! See [`Client`] for the entry point.
 
 #![forbid(unsafe_code)]
+
+mod error;
+
+pub use error::{Error, Result};
