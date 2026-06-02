@@ -13,6 +13,7 @@ pub use client::{Client, ClientBuilder, DEFAULT_BASE_URL};
 pub use error::{Error, Result};
 
 pub mod models;
+pub mod pkce;
 
 pub use models::{
     Metrics, Model, SearchParams, SearchResults, Sort, Tokens, Tone, User, UserListParams,
