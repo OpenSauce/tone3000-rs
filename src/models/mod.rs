@@ -6,5 +6,5 @@ mod tone;
 mod user;
 
 pub use model::Model;
-pub use tone::{Metrics, SearchParams, SearchResults, Sort, Tone};
+pub use tone::{Metrics, SearchParams, SearchResults, Sort, Tokens, Tone};
 pub use user::{User, UserListParams};

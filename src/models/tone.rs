@@ -68,6 +68,16 @@ pub struct SearchResults {
     pub has_more: bool,
 }
 
+/// OAuth token set returned by the token endpoint.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct Tokens {
+    pub access_token: String,
+    #[serde(default)]
+    pub refresh_token: Option<String>,
+    #[serde(default)]
+    pub expires_in: Option<u64>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
