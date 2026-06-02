@@ -23,4 +23,18 @@ impl Client {
         let resp = check_status(req.send().await?).await?;
         json(resp).await
     }
+
+    /// The authenticated user's profile. Requires an access token.
+    pub async fn user(&self) -> Result<User> {
+        if !self.has_access_token().await {
+            return Err(crate::Error::Unauthenticated);
+        }
+        self.maybe_proactive_refresh().await;
+        let req = self
+            .http
+            .get(format!("{}/user", self.base_url))
+            .headers(self.headers().await);
+        let resp = check_status(req.send().await?).await?;
+        json(resp).await
+    }
 }

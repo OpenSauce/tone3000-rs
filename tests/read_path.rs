@@ -90,3 +90,29 @@ async fn download_model_to_streams_to_writer() {
     assert_eq!(n, 100);
     assert_eq!(buf.len(), 100);
 }
+
+#[tokio::test]
+async fn user_scoped_call_without_token_errors() {
+    let client = Client::new("t3k_pub_x");
+    let err = client.user().await.unwrap_err();
+    assert!(matches!(err, tone3000::Error::Unauthenticated));
+}
+
+#[tokio::test]
+async fn created_returns_tones_with_token() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/tones/created"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(
+            r#"{"data":[{"id":"t9","name":"Mine"}],"page":1,"total":1,"has_more":false}"#,
+        ))
+        .mount(&server)
+        .await;
+
+    let client = Client::builder("t3k_pub_x")
+        .base_url(server.uri())
+        .access_token("AT")
+        .build();
+    let res = client.created(SearchParams::default()).await.unwrap();
+    assert_eq!(res.items[0].name, "Mine");
+}
