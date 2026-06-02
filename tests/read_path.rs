@@ -39,3 +39,54 @@ async fn tone_404_maps_to_status_error() {
     let err = client.tone("missing").await.unwrap_err();
     assert!(matches!(err, tone3000::Error::Status { code: 404, .. }));
 }
+
+#[tokio::test]
+async fn download_model_fetches_bytes_with_bearer() {
+    use tone3000::Model;
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/files/a.nam"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(vec![1u8, 2, 3, 4]))
+        .mount(&server)
+        .await;
+
+    let client = Client::builder("t3k_pub_x")
+        .access_token("user_tok")
+        .base_url(server.uri())
+        .build();
+    let model = Model {
+        id: "m1".into(),
+        name: String::new(),
+        model_url: format!("{}/files/a.nam", server.uri()),
+        tone_id: None,
+        format: None,
+    };
+
+    let bytes = client.download_model(&model).await.unwrap();
+    assert_eq!(&bytes[..], &[1, 2, 3, 4]);
+}
+
+#[tokio::test]
+async fn download_model_to_streams_to_writer() {
+    use tone3000::Model;
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/files/b.nam"))
+        .respond_with(ResponseTemplate::new(200).set_body_bytes(vec![9u8; 100]))
+        .mount(&server)
+        .await;
+
+    let client = Client::builder("t3k_pub_x").base_url(server.uri()).build();
+    let model = Model {
+        id: "m2".into(),
+        name: String::new(),
+        model_url: format!("{}/files/b.nam", server.uri()),
+        tone_id: None,
+        format: None,
+    };
+
+    let mut buf: Vec<u8> = Vec::new();
+    let n = client.download_model_to(&model, &mut buf).await.unwrap();
+    assert_eq!(n, 100);
+    assert_eq!(buf.len(), 100);
+}

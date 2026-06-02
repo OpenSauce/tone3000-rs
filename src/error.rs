@@ -32,6 +32,10 @@ pub enum Error {
     #[error("deserialize error: {0}")]
     Deserialize(#[from] serde_json::Error),
 
+    /// Failure writing a streamed download to the provided writer.
+    #[error("io error: {0}")]
+    Io(#[from] std::io::Error),
+
     /// OAuth token endpoint returned an error body.
     #[error("oauth error: {error}")]
     Oauth {

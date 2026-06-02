@@ -1,3 +1,7 @@
+use bytes::Bytes;
+use futures_util::StreamExt;
+use tokio::io::{AsyncWrite, AsyncWriteExt};
+
 use crate::client::Client;
 use crate::error::Result;
 use crate::http::{check_status, json};
@@ -23,5 +27,36 @@ impl Client {
             .headers(self.headers().await);
         let resp = check_status(req.send().await?).await?;
         json(resp).await
+    }
+
+    /// Download a model's file into memory.
+    pub async fn download_model(&self, model: &Model) -> Result<Bytes> {
+        let req = self
+            .http
+            .get(&model.model_url)
+            .headers(self.headers().await);
+        let resp = check_status(req.send().await?).await?;
+        Ok(resp.bytes().await?)
+    }
+
+    /// Stream a model's file to `writer`, returning the number of bytes written.
+    pub async fn download_model_to<W>(&self, model: &Model, writer: &mut W) -> Result<u64>
+    where
+        W: AsyncWrite + Unpin,
+    {
+        let req = self
+            .http
+            .get(&model.model_url)
+            .headers(self.headers().await);
+        let resp = check_status(req.send().await?).await?;
+        let mut stream = resp.bytes_stream();
+        let mut written: u64 = 0;
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk?;
+            writer.write_all(&chunk).await?;
+            written += chunk.len() as u64;
+        }
+        writer.flush().await?;
+        Ok(written)
     }
 }
