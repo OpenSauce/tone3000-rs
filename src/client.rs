@@ -3,7 +3,9 @@ use std::sync::Arc;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use tokio::sync::Mutex;
 
+use crate::error::Result;
 use crate::models::Tokens;
+use crate::oauth::parse_token_response;
 
 /// Default base URL for the TONE3000 v1 API.
 pub const DEFAULT_BASE_URL: &str = "https://www.tone3000.com/api/v1";
@@ -64,6 +66,78 @@ impl Client {
         h.insert(AUTHORIZATION, self.auth_header().await);
         h
     }
+}
+
+impl Client {
+    /// Exchange an authorization code for tokens, storing them on the client.
+    pub async fn exchange_code(
+        &self,
+        code: &str,
+        verifier: &str,
+        redirect_uri: &str,
+    ) -> Result<Tokens> {
+        let form = [
+            ("grant_type", "authorization_code"),
+            ("code", code),
+            ("code_verifier", verifier),
+            ("redirect_uri", redirect_uri),
+            ("client_id", self.pubkey.as_str()),
+        ];
+        self.post_token(&form).await
+    }
+
+    /// Refresh using the stored refresh token, updating stored tokens.
+    pub async fn refresh(&self) -> Result<Tokens> {
+        let refresh = {
+            let guard = self.tokens.lock().await;
+            guard.refresh.clone()
+        };
+        let refresh = refresh.ok_or(crate::Error::Unauthenticated)?;
+        let form = [
+            ("grant_type", "refresh_token"),
+            ("refresh_token", refresh.as_str()),
+            ("client_id", self.pubkey.as_str()),
+        ];
+        self.post_token(&form).await
+    }
+
+    /// Shared token-endpoint POST + state update + change callback.
+    async fn post_token(&self, form: &[(&str, &str)]) -> Result<Tokens> {
+        let resp = self
+            .http
+            .post(format!("{}/oauth/token", self.base_url))
+            .form(form)
+            .send()
+            .await?;
+        let ok = resp.status().is_success();
+        let body = resp.bytes().await?;
+        let tokens = parse_token_response(ok, &body)?;
+        self.store_tokens(&tokens).await;
+        Ok(tokens)
+    }
+
+    /// Persist tokens into client state and fire the change callback.
+    pub(crate) async fn store_tokens(&self, tokens: &Tokens) {
+        {
+            let mut guard = self.tokens.lock().await;
+            guard.access = Some(tokens.access_token.clone());
+            if tokens.refresh_token.is_some() {
+                guard.refresh = tokens.refresh_token.clone();
+            }
+            guard.expires_at = tokens.expires_in.map(|secs| now_unix() + secs);
+        }
+        if let Some(cb) = &self.on_tokens_changed {
+            cb(tokens);
+        }
+    }
+}
+
+/// Current unix-epoch seconds.
+pub(crate) fn now_unix() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }
 
 /// Builder for [`Client`].
