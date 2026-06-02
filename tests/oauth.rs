@@ -8,9 +8,10 @@ async fn exchange_code_stores_tokens_and_fires_callback() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/oauth/token"))
-        .respond_with(ResponseTemplate::new(200).set_body_string(
-            r#"{"access_token":"AT","refresh_token":"RT","expires_in":3600}"#,
-        ))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string(r#"{"access_token":"AT","refresh_token":"RT","expires_in":3600}"#),
+        )
         .mount(&server)
         .await;
 
@@ -56,9 +57,11 @@ async fn auto_refresh_runs_before_request_and_uses_new_token() {
     // Token endpoint returns a fresh access token.
     Mock::given(method("POST"))
         .and(path("/oauth/token"))
-        .respond_with(ResponseTemplate::new(200).set_body_string(
-            r#"{"access_token":"FRESH","refresh_token":"RT2","expires_in":3600}"#,
-        ))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_string(
+                r#"{"access_token":"FRESH","refresh_token":"RT2","expires_in":3600}"#,
+            ),
+        )
         .mount(&server)
         .await;
 
@@ -66,9 +69,10 @@ async fn auto_refresh_runs_before_request_and_uses_new_token() {
     Mock::given(method("GET"))
         .and(path("/tones/search"))
         .and(wiremock::matchers::header("authorization", "Bearer FRESH"))
-        .respond_with(ResponseTemplate::new(200).set_body_string(
-            r#"{"data":[],"page":1,"total":0,"has_more":false}"#,
-        ))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string(r#"{"data":[],"page":1,"total":0,"has_more":false}"#),
+        )
         .mount(&server)
         .await;
 

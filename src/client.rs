@@ -239,7 +239,10 @@ mod tests {
     #[tokio::test]
     async fn app_key_mode_uses_pubkey_bearer() {
         let c = Client::new("t3k_pub_abc");
-        assert_eq!(c.auth_header().await.to_str().unwrap(), "Bearer t3k_pub_abc");
+        assert_eq!(
+            c.auth_header().await.to_str().unwrap(),
+            "Bearer t3k_pub_abc"
+        );
         assert!(!c.has_access_token().await);
     }
 

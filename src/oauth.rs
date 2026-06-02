@@ -20,12 +20,7 @@ pub enum Prompt {
 }
 
 /// Build the `/oauth/authorize` URL the app should open in a browser.
-pub fn authorize_url(
-    client_id: &str,
-    redirect_uri: &str,
-    challenge: &str,
-    prompt: Prompt,
-) -> Url {
+pub fn authorize_url(client_id: &str, redirect_uri: &str, challenge: &str, prompt: Prompt) -> Url {
     let mut url = Url::parse(DEFAULT_BASE_URL).expect("valid base url");
     url.set_path("/api/v1/oauth/authorize");
     {
