@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 mod error;
+mod http;
 
 pub use error::{Error, Result};
 
