@@ -7,3 +7,7 @@
 mod error;
 
 pub use error::{Error, Result};
+
+pub mod models;
+
+pub use models::{Metrics, Model, SearchParams, SearchResults, Sort, Tone, User, UserListParams};

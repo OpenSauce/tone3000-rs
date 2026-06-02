@@ -1,0 +1,10 @@
+//! Typed API models. All structs are lenient: unexpected fields are ignored and
+//! non-essential fields default, so a single API change never sinks a whole response.
+
+mod model;
+mod tone;
+mod user;
+
+pub use model::Model;
+pub use tone::{Metrics, SearchParams, SearchResults, Sort, Tone};
+pub use user::{User, UserListParams};
