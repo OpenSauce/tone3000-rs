@@ -5,3 +5,10 @@ Cargo.lock
 # Design / brainstorming notes (working docs, not part of the published crate)
 /DESIGN.md
 /docs/superpowers/
+
+
+# Added by cargo
+#
+# already existing elements were commented out
+
+#/target
