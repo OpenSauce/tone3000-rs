@@ -1,0 +1,5 @@
+//! Async Rust client for the [TONE3000](https://www.tone3000.com) API (v1).
+//!
+//! See [`Client`] for the entry point.
+
+#![forbid(unsafe_code)]
