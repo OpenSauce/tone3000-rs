@@ -22,7 +22,7 @@ async fn oauth_exchange_code_interactive() {
         &redirect_uri,
         &pkce.challenge,
         &state,
-        Prompt::FullAccess,
+        Prompt::Standard,
     );
 
     println!(
