@@ -39,7 +39,10 @@ pub struct Client {
 }
 
 impl Client {
-    /// Create an app-key-only client (no user token).
+    /// Create a client with no token yet (useful for driving the OAuth bootstrap).
+    ///
+    /// API calls return [`Error::Unauthenticated`] until an access token is set via the
+    /// builder or obtained through `exchange_code`/`refresh`.
     pub fn new(publishable_key: impl Into<String>) -> Self {
         ClientBuilder::new(publishable_key).build()
     }
@@ -49,26 +52,47 @@ impl Client {
         ClientBuilder::new(publishable_key)
     }
 
-    /// Build the request `Authorization` header value, preferring a bearer token.
-    pub(crate) async fn auth_header(&self) -> HeaderValue {
-        let guard = self.tokens.lock().await;
-        let value = match &guard.access {
-            Some(access) => format!("Bearer {access}"),
-            None => format!("Bearer {}", self.pubkey),
+    /// Snapshot the access token under a single lock and build the `Authorization` header
+    /// from it, returning both the header and the exact token used.
+    ///
+    /// Returning the token lets [`Client::send`]'s reactive-refresh guard compare against
+    /// the credential actually attached to the request, rather than a value re-read in a
+    /// separate lock acquisition that a concurrent refresh could have rotated in between.
+    /// Errors with [`Error::Unauthenticated`] if no access token is set; callers go through
+    /// [`Client::send`], which first ensures a token via [`Client::ensure_authenticated`].
+    pub(crate) async fn authorized_headers(&self) -> Result<(HeaderMap, String)> {
+        let access = {
+            let guard = self.tokens.lock().await;
+            guard.access.clone().ok_or(Error::Unauthenticated)?
         };
-        HeaderValue::from_str(&value).expect("header value is valid ascii")
+        let mut h = HeaderMap::new();
+        h.insert(
+            AUTHORIZATION,
+            HeaderValue::from_str(&format!("Bearer {access}"))
+                .expect("header value is valid ascii"),
+        );
+        Ok((h, access))
+    }
+
+    /// Ensure an access token is available, minting one from the refresh token if needed.
+    /// Returns [`Error::Unauthenticated`] when there is neither an access nor a refresh token.
+    pub(crate) async fn ensure_authenticated(&self) -> Result<()> {
+        if self.has_access_token().await {
+            return Ok(());
+        }
+        if !self.has_refresh_token().await {
+            return Err(Error::Unauthenticated);
+        }
+        let _guard = self.refresh_lock.lock().await;
+        if !self.has_access_token().await {
+            self.refresh_locked().await?;
+        }
+        Ok(())
     }
 
     /// True if the client currently holds a user access token.
     pub(crate) async fn has_access_token(&self) -> bool {
         self.tokens.lock().await.access.is_some()
-    }
-
-    /// Default headers for a request (currently just auth).
-    pub(crate) async fn headers(&self) -> HeaderMap {
-        let mut h = HeaderMap::new();
-        h.insert(AUTHORIZATION, self.auth_header().await);
-        h
     }
 
     /// Snapshot of the current access token, used to detect refreshes by other tasks.
@@ -122,26 +146,25 @@ impl Client {
         }
     }
 
-    /// Execute an authenticated request, applying auth headers, proactively refreshing
-    /// near expiry, and — when `auto_refresh` is set — reactively refreshing once and
-    /// retrying on a `401`.
     pub(crate) async fn send(&self, req: reqwest::RequestBuilder) -> Result<reqwest::Response> {
+        self.ensure_authenticated().await?;
         self.maybe_proactive_refresh().await?;
 
-        // Keep a clone for a possible retry (None for non-cloneable streaming bodies).
         let retry = req.try_clone();
-        let used = self.current_access().await;
-        let resp = req.headers(self.headers().await).send().await?;
+        // Snapshot the token and header together so the guard below compares against the
+        // exact credential we send, not a separately re-read value.
+        let (headers, used) = self.authorized_headers().await?;
+        let resp = req.headers(headers).send().await?;
 
         match check_status(resp).await {
             Err(Error::Unauthorized) if self.auto_refresh && self.has_refresh_token().await => {
-                self.reactive_refresh(used).await?;
+                self.reactive_refresh(Some(used)).await?;
                 match retry {
                     Some(rb) => {
-                        let resp = rb.headers(self.headers().await).send().await?;
+                        let (headers, _) = self.authorized_headers().await?;
+                        let resp = rb.headers(headers).send().await?;
                         check_status(resp).await
                     }
-                    // Body wasn't cloneable; surface the original 401.
                     None => Err(Error::Unauthorized),
                 }
             }
@@ -273,7 +296,7 @@ impl ClientBuilder {
         self
     }
 
-    /// Set the user access token (switches the client into bearer mode).
+    /// Set the user access token used as the Bearer credential for API calls.
     pub fn access_token(mut self, token: impl Into<String>) -> Self {
         self.access = Some(token.into());
         self
@@ -333,21 +356,35 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn app_key_mode_uses_pubkey_bearer() {
+    async fn no_token_authorized_headers_errors() {
         let c = Client::new("t3k_pub_abc");
-        assert_eq!(
-            c.auth_header().await.to_str().unwrap(),
-            "Bearer t3k_pub_abc"
-        );
+        assert!(matches!(
+            c.authorized_headers().await,
+            Err(Error::Unauthenticated)
+        ));
         assert!(!c.has_access_token().await);
     }
 
     #[tokio::test]
-    async fn bearer_mode_prefers_access_token() {
+    async fn bearer_mode_uses_access_token() {
         let c = Client::builder("t3k_pub_abc")
             .access_token("user_tok")
             .build();
-        assert_eq!(c.auth_header().await.to_str().unwrap(), "Bearer user_tok");
+        let (headers, used) = c.authorized_headers().await.unwrap();
+        assert_eq!(
+            headers.get(AUTHORIZATION).unwrap().to_str().unwrap(),
+            "Bearer user_tok"
+        );
+        assert_eq!(used, "user_tok");
         assert!(c.has_access_token().await);
+    }
+
+    #[tokio::test]
+    async fn ensure_authenticated_errors_without_any_token() {
+        let c = Client::new("t3k_pub_abc");
+        assert!(matches!(
+            c.ensure_authenticated().await,
+            Err(Error::Unauthenticated)
+        ));
     }
 }

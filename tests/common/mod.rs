@@ -6,9 +6,6 @@ use serde_json::Value;
 use tone3000::{Client, DEFAULT_BASE_URL};
 
 /// Read a required env var, panicking with a clear message if unset/empty.
-///
-/// Live tests are `#[ignore]`d and only run on demand, so a missing var should fail
-/// loudly rather than silently skip.
 pub fn require_env(name: &str) -> String {
     match std::env::var(name) {
         Ok(v) if !v.trim().is_empty() => v,
@@ -16,7 +13,6 @@ pub fn require_env(name: &str) -> String {
     }
 }
 
-/// Optional base-url override from `TONE3000_BASE_URL`.
 fn base_url_override() -> Option<String> {
     std::env::var("TONE3000_BASE_URL")
         .ok()
@@ -28,25 +24,22 @@ pub fn api_base() -> String {
     base_url_override().unwrap_or_else(|| DEFAULT_BASE_URL.to_string())
 }
 
-/// App-key client built from `TONE3000_API_KEY`.
-pub fn public_client() -> Client {
-    let key = require_env("TONE3000_API_KEY");
-    let mut b = Client::builder(key);
-    if let Some(u) = base_url_override() {
-        b = b.base_url(u);
-    }
-    b.build()
-}
-
-/// User client seeded with a refresh token from `TONE3000_REFRESH_TOKEN`.
-pub fn user_client() -> Client {
+/// Build an authenticated client (publishable key + refresh token) and mint a fresh access
+/// token, returning both the client and the access token (for raw drift GETs). Every
+/// endpoint requires an access token, so all live tests go through this.
+pub async fn authed() -> (Client, String) {
     let key = require_env("TONE3000_API_KEY");
     let refresh = require_env("TONE3000_REFRESH_TOKEN");
     let mut b = Client::builder(key).refresh_token(refresh);
     if let Some(u) = base_url_override() {
         b = b.base_url(u);
     }
-    b.build()
+    let client = b.build();
+    let tokens = client
+        .refresh()
+        .await
+        .expect("refresh to mint an access token");
+    (client, tokens.access_token)
 }
 
 /// GET a URL with a bearer token and parse the body as raw JSON, for drift comparison.
@@ -63,9 +56,6 @@ pub async fn raw_json(url: &str, bearer: &str) -> Value {
 }
 
 /// Warn loudly (never fail) on any key present in `raw` but not in `modeled`.
-///
-/// `modeled` is the typed value round-tripped through `serde_json::to_value`. Matches the
-/// deliberate lenient-deserialization design: drift is surfaced, not fatal.
 pub fn drift_warn(label: &str, raw: &Value, modeled: &Value) {
     let mut unmodeled = Vec::new();
     collect_unmodeled("", raw, modeled, &mut unmodeled);
@@ -77,8 +67,6 @@ pub fn drift_warn(label: &str, raw: &Value, modeled: &Value) {
     }
 }
 
-/// Recursively collect dotted paths of keys in `raw` absent from `modeled`.
-/// Arrays compare their first element pair as representative of the element shape.
 fn collect_unmodeled(path: &str, raw: &Value, modeled: &Value, out: &mut Vec<String>) {
     match (raw, modeled) {
         (Value::Object(raw_map), Value::Object(mod_map)) => {

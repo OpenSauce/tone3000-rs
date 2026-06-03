@@ -1,14 +1,1 @@
-{
-  "data": [
-    {
-      "id": "t1",
-      "name": "Plexi Crunch",
-      "gears": ["Marshall"],
-      "metrics": { "downloads": 10, "favorites": 2 },
-      "surprise_new_field": true
-    }
-  ],
-  "page": 1,
-  "total": 1,
-  "has_more": false
-}
+{"data":[{"id":51949,"title":"Plexi 51","description":"Plexi 51 All Access set to a 68 Plexi","tags":[],"makes":[{"name":"Marshall Plexi"}],"gear":"amp","models_count":6,"a1_models_count":3,"a2_models_count":3,"irs_count":0,"custom_models_count":0,"favorites_count":6,"downloads_count":429,"created_at":"2026-01-25T18:27:37.799064+00:00","updated_at":"2026-01-25T18:27:37.799064+00:00","platform":"nam","images":["https://api.tone3000.com/storage/v1/object/public/images/tr1fgdul2mp.jpg"],"user_id":"57af4bb9-80fe-43be-93b3-e3c9e9d92717","user":{"username":"brucew","avatar_url":null,"id":"57af4bb9-80fe-43be-93b3-e3c9e9d92717","url":"https://www.tone3000.com//brucew"},"url":"https://www.tone3000.com//plexi-51-51949"},{"id":2699,"title":"Plexi","description":"pre amp and el34 pp power amp","tags":[{"name":"crunch"},{"name":"nam"}],"makes":[{"name":"Synergy"}],"gear":"amp","models_count":2,"a1_models_count":1,"a2_models_count":1,"irs_count":0,"custom_models_count":0,"favorites_count":14,"downloads_count":604,"created_at":"2023-07-22T01:18:44.512+00:00","updated_at":"2023-07-22T01:18:44.512+00:00","platform":"nam","images":null,"user_id":"6d6ff309-f602-412d-8141-253f57be5d50","user":{"username":"akka5","avatar_url":"https://api.tone3000.com/storage/v1/object/public/avatars/akka_5-1683603147.jpg","id":"6d6ff309-f602-412d-8141-253f57be5d50","url":"https://www.tone3000.com//akka5"},"url":"https://www.tone3000.com//plexi-2699"}],"page":1,"page_size":2,"total":254,"total_pages":127}
