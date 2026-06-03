@@ -50,15 +50,15 @@ pub struct Tone {
     pub platform: Option<Platform>,
     #[serde(default)]
     pub license: Option<License>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::models::de_null_as_default")]
     pub sizes: Vec<Size>,
     #[serde(default, deserialize_with = "crate::models::de_null_as_default")]
     pub images: Vec<String>,
     #[serde(default)]
     pub links: Option<Vec<String>>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::models::de_null_as_default")]
     pub makes: Vec<Make>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::models::de_null_as_default")]
     pub tags: Vec<Tag>,
     #[serde(default)]
     pub is_public: Option<bool>,
@@ -124,6 +124,21 @@ mod tests {
         assert_eq!(tone.user.as_ref().unwrap().username, "brucew");
         assert_eq!(tone.models_count, 6);
         assert_eq!(tone.a1_models_count, 3);
+    }
+
+    #[test]
+    fn tone_tolerates_explicit_null_arrays() {
+        // The real API returns `"images": null` (and may null other arrays); explicit
+        // null must deserialize to an empty Vec, not fail the whole response.
+        let json = r#"{
+            "id": 1, "user_id": "u",
+            "images": null, "sizes": null, "makes": null, "tags": null
+        }"#;
+        let tone: Tone = serde_json::from_str(json).unwrap();
+        assert!(tone.images.is_empty());
+        assert!(tone.sizes.is_empty());
+        assert!(tone.makes.is_empty());
+        assert!(tone.tags.is_empty());
     }
 
     #[test]
