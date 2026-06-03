@@ -5,21 +5,30 @@ use tokio::io::{AsyncWrite, AsyncWriteExt};
 use crate::client::Client;
 use crate::error::Result;
 use crate::http::json;
-use crate::models::Model;
+use crate::models::{Model, ModelId, ModelListParams, Page, ToneId};
 
 impl Client {
     /// List the models belonging to a tone.
-    pub async fn models(&self, tone_id: &str) -> Result<Vec<Model>> {
-        let req = self
+    pub async fn models(&self, tone_id: ToneId, params: ModelListParams) -> Result<Page<Model>> {
+        let mut req = self
             .http
             .get(format!("{}/models", self.base_url))
-            .query(&[("tone_id", tone_id)]);
+            .query(&[("tone_id", tone_id.to_string())]);
+        if let Some(page) = params.page {
+            req = req.query(&[("page", page)]);
+        }
+        if let Some(page_size) = params.page_size {
+            req = req.query(&[("page_size", page_size)]);
+        }
+        if let Some(arch) = params.architecture {
+            req = req.query(&[("architecture", arch)]);
+        }
         let resp = self.send(req).await?;
         json(resp).await
     }
 
     /// Fetch a single model by id.
-    pub async fn model(&self, id: &str) -> Result<Model> {
+    pub async fn model(&self, id: ModelId) -> Result<Model> {
         let req = self.http.get(format!("{}/models/{id}", self.base_url));
         let resp = self.send(req).await?;
         json(resp).await
