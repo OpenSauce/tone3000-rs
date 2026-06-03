@@ -40,7 +40,10 @@ async fn public_endpoints_contract() {
         .expect("models list succeeds");
     assert!(!models.data.is_empty(), "tone {tone_id} has no models?");
     for m in &models.data {
-        assert_eq!(m.tone_id, tone_id, "model.tone_id must match the queried tone");
+        assert_eq!(
+            m.tone_id, tone_id,
+            "model.tone_id must match the queried tone"
+        );
     }
     let model_id = models.data[0].id;
 
@@ -58,7 +61,10 @@ async fn public_endpoints_contract() {
         &serde_json::to_value(&model).unwrap(),
     );
 
-    let bytes = client.download_model(&model).await.expect("download succeeds");
+    let bytes = client
+        .download_model(&model)
+        .await
+        .expect("download succeeds");
     assert!(!bytes.is_empty(), "downloaded model should be non-empty");
 
     match client.download_model_json(&model).await {
@@ -74,8 +80,16 @@ async fn public_endpoints_contract() {
         .download_model_to(&model, &mut buf)
         .await
         .expect("streamed download succeeds");
-    assert_eq!(n, buf.len() as u64, "returned count must equal bytes written");
-    assert_eq!(n, bytes.len() as u64, "streamed and in-memory sizes must match");
+    assert_eq!(
+        n,
+        buf.len() as u64,
+        "returned count must equal bytes written"
+    );
+    assert_eq!(
+        n,
+        bytes.len() as u64,
+        "streamed and in-memory sizes must match"
+    );
 }
 
 #[tokio::test]

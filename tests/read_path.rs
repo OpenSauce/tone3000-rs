@@ -109,7 +109,10 @@ async fn users_parses_paginated_fixture() {
         .mount(&server)
         .await;
 
-    let page = client(&server).users(UserListParams::default()).await.unwrap();
+    let page = client(&server)
+        .users(UserListParams::default())
+        .await
+        .unwrap();
     assert_eq!(page.data[0].username, "akka5");
     assert_eq!(page.data[0].tones_count, 153);
 }
@@ -125,7 +128,10 @@ async fn created_parses_empty_page() {
         .mount(&server)
         .await;
 
-    let page = client(&server).created(ListParams::default()).await.unwrap();
+    let page = client(&server)
+        .created(ListParams::default())
+        .await
+        .unwrap();
     assert_eq!(page.total, 0);
     assert!(page.data.is_empty());
 }
@@ -174,7 +180,10 @@ async fn download_model_json_rejects_non_utf8() {
         .await;
 
     let model = model_fixture(&server, "/files/bad.nam");
-    let err = client(&server).download_model_json(&model).await.unwrap_err();
+    let err = client(&server)
+        .download_model_json(&model)
+        .await
+        .unwrap_err();
     assert!(matches!(err, tone3000::Error::Utf8(_)));
 }
 

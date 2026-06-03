@@ -5,7 +5,7 @@ use url::Url;
 
 use crate::client::DEFAULT_BASE_URL;
 use crate::error::{Error, Result};
-use crate::models::{ModelId, ToneId, Tokens};
+use crate::models::{ModelId, Tokens, ToneId};
 
 /// The `prompt` parameter selecting which OAuth flow to start.
 #[derive(Debug, Clone)]
@@ -133,7 +133,9 @@ mod tests {
             "http://localhost/cb",
             "C",
             "S",
-            Prompt::LoadModel { model_id: ModelId(42) },
+            Prompt::LoadModel {
+                model_id: ModelId(42),
+            },
         );
         let s = u.as_str();
         assert!(s.contains("prompt=load_model"));
@@ -142,7 +144,13 @@ mod tests {
 
     #[test]
     fn authorize_url_standard_sends_no_prompt() {
-        let u = authorize_url("t3k_pub_x", "http://localhost/cb", "C", "S", Prompt::Standard);
+        let u = authorize_url(
+            "t3k_pub_x",
+            "http://localhost/cb",
+            "C",
+            "S",
+            Prompt::Standard,
+        );
         assert!(!u.as_str().contains("prompt="));
     }
 
@@ -154,7 +162,8 @@ mod tests {
 
     #[test]
     fn parse_token_response_maps_gotrue_error_body() {
-        let body = br#"{"code":400,"error_code":"refresh_token_not_found","msg":"Invalid Refresh Token"}"#;
+        let body =
+            br#"{"code":400,"error_code":"refresh_token_not_found","msg":"Invalid Refresh Token"}"#;
         let err = parse_token_response(400, body).unwrap_err();
         assert!(matches!(err, Error::Oauth { error, description }
             if error == "refresh_token_not_found" && description.as_deref() == Some("Invalid Refresh Token")));

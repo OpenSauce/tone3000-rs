@@ -67,7 +67,9 @@ async fn gotrue_refresh_error_maps_to_oauth_error() {
         .refresh_token("RT")
         .build();
     let err = client.refresh().await.unwrap_err();
-    assert!(matches!(err, tone3000::Error::Oauth { error, .. } if error == "refresh_token_not_found"));
+    assert!(
+        matches!(err, tone3000::Error::Oauth { error, .. } if error == "refresh_token_not_found")
+    );
 }
 
 #[tokio::test]
@@ -75,9 +77,11 @@ async fn proactive_refresh_fires_on_seeded_expiry() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/oauth/token"))
-        .respond_with(ResponseTemplate::new(200).set_body_string(
-            r#"{"access_token":"FRESH","refresh_token":"RT2","expires_in":3600}"#,
-        ))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_string(
+                r#"{"access_token":"FRESH","refresh_token":"RT2","expires_in":3600}"#,
+            ),
+        )
         .mount(&server)
         .await;
     Mock::given(method("GET"))
@@ -104,9 +108,11 @@ async fn reactive_refresh_retries_once_on_401() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/oauth/token"))
-        .respond_with(ResponseTemplate::new(200).set_body_string(
-            r#"{"access_token":"FRESH","refresh_token":"RT2","expires_in":3600}"#,
-        ))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_string(
+                r#"{"access_token":"FRESH","refresh_token":"RT2","expires_in":3600}"#,
+            ),
+        )
         .mount(&server)
         .await;
     Mock::given(method("GET"))

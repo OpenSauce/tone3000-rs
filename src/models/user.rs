@@ -71,7 +71,8 @@ mod tests {
 
     #[test]
     fn public_user_parses_counts() {
-        let json = r#"{ "id": "6d6f", "username": "akka5", "tones_count": 153, "models_count": 661 }"#;
+        let json =
+            r#"{ "id": "6d6f", "username": "akka5", "tones_count": 153, "models_count": 661 }"#;
         let p: PublicUser = serde_json::from_str(json).unwrap();
         assert_eq!(p.username, "akka5");
         assert_eq!(p.tones_count, 153);
