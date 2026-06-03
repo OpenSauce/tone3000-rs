@@ -21,7 +21,9 @@ UI, file placement, token storage) stay in the consuming app.
   field must never fail a whole response. Public enums are `#[non_exhaustive]`.
 - **Errors via `thiserror`.** Surface 401 / 403 / 429 distinctly; `RateLimited` carries
   `retry_after`. User-scoped calls in app-key mode return `Error::Unauthenticated`.
-- **No live network in tests.** Use `wiremock` + scrubbed response fixtures.
+- **No live network in default/CI tests.** Use `wiremock` + scrubbed response fixtures.
+  An opt-in `#[ignore]`d live suite (`tests/live_*.rs`) smoke-tests the real API — run it
+  with `make test-live` / `make test-oauth`; it never runs under plain `cargo test`.
 
 ## Architecture (Approach A)
 
