@@ -39,7 +39,10 @@ pub struct Client {
 }
 
 impl Client {
-    /// Create an app-key-only client (no user token).
+    /// Create a client with no token yet (useful for driving the OAuth bootstrap).
+    ///
+    /// API calls return [`Error::Unauthenticated`] until an access token is set via the
+    /// builder or obtained through `exchange_code`/`refresh`.
     pub fn new(publishable_key: impl Into<String>) -> Self {
         ClientBuilder::new(publishable_key).build()
     }
@@ -288,7 +291,7 @@ impl ClientBuilder {
         self
     }
 
-    /// Set the user access token (switches the client into bearer mode).
+    /// Set the user access token used as the Bearer credential for API calls.
     pub fn access_token(mut self, token: impl Into<String>) -> Self {
         self.access = Some(token.into());
         self

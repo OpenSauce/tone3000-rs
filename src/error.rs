@@ -24,8 +24,9 @@ pub enum Error {
     #[error("rate limited (429)")]
     RateLimited { retry_after: Option<Duration> },
 
-    /// A user-scoped call was made on a client that has no access token.
-    #[error("operation requires an access token, but client is in app-key mode")]
+    /// An API call was made on a client with no access token (and no refresh token to
+    /// mint one). Every TONE3000 endpoint requires a Bearer access token.
+    #[error("operation requires an access token, but none is set")]
     Unauthenticated,
 
     /// Response body could not be deserialized.

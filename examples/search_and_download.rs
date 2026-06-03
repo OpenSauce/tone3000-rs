@@ -1,12 +1,17 @@
 //! Run with: cargo run --example search_and_download
-//! Set T3K_PUB_KEY in the environment.
+//!
+//! Every TONE3000 API call requires an OAuth access token, so set both:
+//!   T3K_PUB_KEY          your publishable key (the OAuth client_id)
+//!   T3K_ACCESS_TOKEN     a user access token (obtain via the OAuth flow; see `oauth`)
+//! A token-less client would fail every call with `Error::Unauthenticated`.
 
 use tone3000::{Client, ModelListParams, SearchParams};
 
 #[tokio::main]
 async fn main() -> tone3000::Result<()> {
     let key = std::env::var("T3K_PUB_KEY").expect("set T3K_PUB_KEY");
-    let client = Client::new(key);
+    let access = std::env::var("T3K_ACCESS_TOKEN").expect("set T3K_ACCESS_TOKEN");
+    let client = Client::builder(key).access_token(access).build();
 
     let results = client
         .search(SearchParams {
