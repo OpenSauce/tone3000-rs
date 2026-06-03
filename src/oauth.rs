@@ -20,7 +20,18 @@ pub enum Prompt {
 }
 
 /// Build the `/oauth/authorize` URL the app should open in a browser.
-pub fn authorize_url(client_id: &str, redirect_uri: &str, challenge: &str, prompt: Prompt) -> Url {
+///
+/// `state` is an opaque, unguessable value the app generates and **must** persist: the
+/// authorize redirect returns it unchanged, and the app verifies it matches before
+/// trusting the `code`. TONE3000 requires it. The app owns this (as it owns the redirect
+/// transport and the PKCE verifier), so it is passed in rather than generated here.
+pub fn authorize_url(
+    client_id: &str,
+    redirect_uri: &str,
+    challenge: &str,
+    state: &str,
+    prompt: Prompt,
+) -> Url {
     let mut url = Url::parse(DEFAULT_BASE_URL).expect("valid base url");
     url.set_path("/api/v1/oauth/authorize");
     {
@@ -30,6 +41,7 @@ pub fn authorize_url(client_id: &str, redirect_uri: &str, challenge: &str, promp
         q.append_pair("redirect_uri", redirect_uri);
         q.append_pair("code_challenge", challenge);
         q.append_pair("code_challenge_method", "S256");
+        q.append_pair("state", state);
         match prompt {
             Prompt::SelectTone => {
                 q.append_pair("prompt", "select_tone");
@@ -84,6 +96,7 @@ mod tests {
             "t3k_pub_x",
             "http://localhost:8080/cb",
             "CHAL",
+            "xyz-state",
             Prompt::LoadTone {
                 tone_id: "t1".into(),
             },
@@ -91,6 +104,7 @@ mod tests {
         let s = u.as_str();
         assert!(s.contains("code_challenge=CHAL"));
         assert!(s.contains("code_challenge_method=S256"));
+        assert!(s.contains("state=xyz-state"));
         assert!(s.contains("prompt=load_tone"));
         assert!(s.contains("tone_id=t1"));
     }

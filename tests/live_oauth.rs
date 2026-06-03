@@ -14,7 +14,16 @@ async fn oauth_exchange_code_interactive() {
         .unwrap_or_else(|| "http://localhost:8765/callback".to_string());
 
     let pkce = generate_pkce();
-    let url = authorize_url(&key, &redirect_uri, &pkce.challenge, Prompt::FullAccess);
+    // The app owns `state`: generate an unguessable value and (in a real app) verify the
+    // callback returns it unchanged. A fresh PKCE verifier is a convenient random source.
+    let state = generate_pkce().verifier;
+    let url = authorize_url(
+        &key,
+        &redirect_uri,
+        &pkce.challenge,
+        &state,
+        Prompt::FullAccess,
+    );
 
     println!(
         "\n1. Open this URL in a browser and authorize:\n\n{}\n",
