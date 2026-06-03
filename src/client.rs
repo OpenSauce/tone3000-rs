@@ -52,17 +52,26 @@ impl Client {
         ClientBuilder::new(publishable_key)
     }
 
-    /// Build the request `Authorization` header from the stored access token.
+    /// Snapshot the access token under a single lock and build the `Authorization` header
+    /// from it, returning both the header and the exact token used.
     ///
+    /// Returning the token lets [`Client::send`]'s reactive-refresh guard compare against
+    /// the credential actually attached to the request, rather than a value re-read in a
+    /// separate lock acquisition that a concurrent refresh could have rotated in between.
     /// Errors with [`Error::Unauthenticated`] if no access token is set; callers go through
     /// [`Client::send`], which first ensures a token via [`Client::ensure_authenticated`].
-    pub(crate) async fn auth_header(&self) -> Result<HeaderValue> {
-        let guard = self.tokens.lock().await;
-        match &guard.access {
-            Some(access) => Ok(HeaderValue::from_str(&format!("Bearer {access}"))
-                .expect("header value is valid ascii")),
-            None => Err(Error::Unauthenticated),
-        }
+    pub(crate) async fn authorized_headers(&self) -> Result<(HeaderMap, String)> {
+        let access = {
+            let guard = self.tokens.lock().await;
+            guard.access.clone().ok_or(Error::Unauthenticated)?
+        };
+        let mut h = HeaderMap::new();
+        h.insert(
+            AUTHORIZATION,
+            HeaderValue::from_str(&format!("Bearer {access}"))
+                .expect("header value is valid ascii"),
+        );
+        Ok((h, access))
     }
 
     /// Ensure an access token is available, minting one from the refresh token if needed.
@@ -84,13 +93,6 @@ impl Client {
     /// True if the client currently holds a user access token.
     pub(crate) async fn has_access_token(&self) -> bool {
         self.tokens.lock().await.access.is_some()
-    }
-
-    /// Default headers for a request (currently just auth).
-    pub(crate) async fn headers(&self) -> Result<HeaderMap> {
-        let mut h = HeaderMap::new();
-        h.insert(AUTHORIZATION, self.auth_header().await?);
-        Ok(h)
     }
 
     /// Snapshot of the current access token, used to detect refreshes by other tasks.
@@ -149,15 +151,18 @@ impl Client {
         self.maybe_proactive_refresh().await?;
 
         let retry = req.try_clone();
-        let used = self.current_access().await;
-        let resp = req.headers(self.headers().await?).send().await?;
+        // Snapshot the token and header together so the guard below compares against the
+        // exact credential we send, not a separately re-read value.
+        let (headers, used) = self.authorized_headers().await?;
+        let resp = req.headers(headers).send().await?;
 
         match check_status(resp).await {
             Err(Error::Unauthorized) if self.auto_refresh && self.has_refresh_token().await => {
-                self.reactive_refresh(used).await?;
+                self.reactive_refresh(Some(used)).await?;
                 match retry {
                     Some(rb) => {
-                        let resp = rb.headers(self.headers().await?).send().await?;
+                        let (headers, _) = self.authorized_headers().await?;
+                        let resp = rb.headers(headers).send().await?;
                         check_status(resp).await
                     }
                     None => Err(Error::Unauthorized),
@@ -351,9 +356,12 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn no_token_auth_header_errors() {
+    async fn no_token_authorized_headers_errors() {
         let c = Client::new("t3k_pub_abc");
-        assert!(matches!(c.auth_header().await, Err(Error::Unauthenticated)));
+        assert!(matches!(
+            c.authorized_headers().await,
+            Err(Error::Unauthenticated)
+        ));
         assert!(!c.has_access_token().await);
     }
 
@@ -362,10 +370,12 @@ mod tests {
         let c = Client::builder("t3k_pub_abc")
             .access_token("user_tok")
             .build();
+        let (headers, used) = c.authorized_headers().await.unwrap();
         assert_eq!(
-            c.auth_header().await.unwrap().to_str().unwrap(),
+            headers.get(AUTHORIZATION).unwrap().to_str().unwrap(),
             "Bearer user_tok"
         );
+        assert_eq!(used, "user_tok");
         assert!(c.has_access_token().await);
     }
 

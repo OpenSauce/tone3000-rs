@@ -54,8 +54,8 @@ pub struct Tone {
     pub sizes: Vec<Size>,
     #[serde(default, deserialize_with = "crate::models::de_null_as_default")]
     pub images: Vec<String>,
-    #[serde(default)]
-    pub links: Option<Vec<String>>,
+    #[serde(default, deserialize_with = "crate::models::de_null_as_default")]
+    pub links: Vec<String>,
     #[serde(default, deserialize_with = "crate::models::de_null_as_default")]
     pub makes: Vec<Make>,
     #[serde(default, deserialize_with = "crate::models::de_null_as_default")]
@@ -132,13 +132,14 @@ mod tests {
         // null must deserialize to an empty Vec, not fail the whole response.
         let json = r#"{
             "id": 1, "user_id": "u",
-            "images": null, "sizes": null, "makes": null, "tags": null
+            "images": null, "sizes": null, "makes": null, "tags": null, "links": null
         }"#;
         let tone: Tone = serde_json::from_str(json).unwrap();
         assert!(tone.images.is_empty());
         assert!(tone.sizes.is_empty());
         assert!(tone.makes.is_empty());
         assert!(tone.tags.is_empty());
+        assert!(tone.links.is_empty());
     }
 
     #[test]

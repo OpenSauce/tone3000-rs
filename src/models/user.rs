@@ -13,8 +13,8 @@ pub struct User {
     pub avatar_url: Option<String>,
     #[serde(default)]
     pub bio: Option<String>,
-    #[serde(default)]
-    pub links: Option<Vec<String>>,
+    #[serde(default, deserialize_with = "crate::models::de_null_as_default")]
+    pub links: Vec<String>,
     #[serde(default)]
     pub created_at: Option<String>,
     #[serde(default)]
@@ -31,8 +31,8 @@ pub struct PublicUser {
     pub username: String,
     #[serde(default)]
     pub bio: Option<String>,
-    #[serde(default)]
-    pub links: Option<Vec<String>>,
+    #[serde(default, deserialize_with = "crate::models::de_null_as_default")]
+    pub links: Vec<String>,
     #[serde(default)]
     pub avatar_url: Option<String>,
     #[serde(default)]
