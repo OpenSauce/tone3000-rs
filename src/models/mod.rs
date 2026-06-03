@@ -1,6 +1,7 @@
 //! Typed API models. All structs are lenient: unexpected fields are ignored and
 //! non-essential fields default, so a single API change never sinks a whole response.
 
+mod enums;
 mod ids;
 mod model;
 mod tone;
