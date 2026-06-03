@@ -52,7 +52,7 @@ pub struct Tone {
     pub license: Option<License>,
     #[serde(default)]
     pub sizes: Vec<Size>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::models::de_null_as_default")]
     pub images: Vec<String>,
     #[serde(default)]
     pub links: Option<Vec<String>>,
