@@ -7,6 +7,9 @@ Cargo.lock
 /docs/superpowers/
 
 
+# Local credentials for the live test suite (see Makefile)
+.env
+
 # Added by cargo
 #
 # already existing elements were commented out
