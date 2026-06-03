@@ -11,22 +11,42 @@ use tone3000::{Client, SearchParams};
 
 #[tokio::main]
 async fn main() -> tone3000::Result<()> {
-    let client = Client::new("t3k_pub_your_key");
+    // Every API call requires an OAuth access token (see "Auth" below).
+    let client = Client::builder("t3k_pub_your_key")
+        .access_token("user_access_token")
+        .build();
     let results = client
         .search(SearchParams { query: Some("plexi".into()), ..Default::default() })
         .await?;
-    for tone in results.items {
-        println!("{}: {}", tone.id, tone.name);
+    for tone in results.data {
+        println!("{}: {}", tone.id, tone.title);
     }
     Ok(())
 }
 ```
 
+Results come back as a `Page<T>` (`data`, `page`, `page_size`, `total`, `total_pages`).
+
 ## Auth
 
-- **App key:** `Client::new("t3k_pub_…")` for public reads.
-- **OAuth PKCE:** use `tone3000::pkce::generate()` + `tone3000::oauth::authorize_url(...)`,
-  then `client.exchange_code(...)`. The app owns the redirect transport.
+Every endpoint requires `Authorization: Bearer <access token>` — there is no anonymous or
+app-key access. The publishable key (`t3k_pub_…`) is only the OAuth `client_id`; it is not a
+valid Bearer token. A call made without an access token returns `Error::Unauthenticated`.
+
+Obtain a token via OAuth 2.0 + PKCE (the app owns the redirect transport):
+
+```rust
+let pkce = tone3000::pkce::generate();
+let state = /* an unguessable value you store and verify on the callback */;
+let url = tone3000::oauth::authorize_url(
+    "t3k_pub_…", "http://localhost:8765/callback", &pkce.challenge, state, tone3000::Prompt::Standard,
+);
+// open `url`, capture the redirected `code`, then:
+let tokens = client.exchange_code(&code, &pkce.verifier, "http://localhost:8765/callback").await?;
+```
+
+Seed a client from stored tokens with `Client::builder(key).access_token(at).refresh_token(rt)`;
+with `.auto_refresh(true)` the client transparently refreshes near expiry and retries once on a 401.
 
 ## Downloading models
 
