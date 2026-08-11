@@ -3,7 +3,6 @@
 
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use rand::RngCore;
 use sha2::{Digest, Sha256};
 
 /// A PKCE verifier/challenge pair. Keep `verifier` for the token exchange; send
@@ -17,7 +16,7 @@ pub struct Pkce {
 /// Generate a fresh PKCE pair using the S256 method.
 pub fn generate() -> Pkce {
     let mut raw = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut raw);
+    getrandom::fill(&mut raw).expect("OS random number generator unavailable");
     let verifier = URL_SAFE_NO_PAD.encode(raw);
     let challenge = challenge_for(&verifier);
     Pkce {
