@@ -3,7 +3,7 @@ use std::sync::Arc;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use tokio::sync::Mutex;
 
-use crate::error::{Error, Result};
+use crate::error::{Error, Result, TransportResultExt};
 use crate::http::check_status;
 use crate::models::Tokens;
 use crate::oauth::parse_token_response;
@@ -39,15 +39,13 @@ pub struct Client {
 }
 
 impl Client {
-    /// Create a client with no token yet (useful for driving the OAuth bootstrap).
-    ///
-    /// API calls return [`Error::Unauthenticated`] until an access token is set via the
-    /// builder or obtained through `exchange_code`/`refresh`.
-    pub fn new(publishable_key: impl Into<String>) -> Self {
-        ClientBuilder::new(publishable_key).build()
-    }
-
     /// Start building a configured client.
+    ///
+    /// Every TONE3000 endpoint requires a user access token, so a client built without
+    /// one — via [`access_token`](ClientBuilder::access_token) or
+    /// [`refresh_token`](ClientBuilder::refresh_token) — is only useful for driving the
+    /// OAuth bootstrap. API calls on it return [`Error::Unauthenticated`] until
+    /// `exchange_code`/`refresh` mints a token.
     pub fn builder(publishable_key: impl Into<String>) -> ClientBuilder {
         ClientBuilder::new(publishable_key)
     }
@@ -154,7 +152,7 @@ impl Client {
         // Snapshot the token and header together so the guard below compares against the
         // exact credential we send, not a separately re-read value.
         let (headers, used) = self.authorized_headers().await?;
-        let resp = req.headers(headers).send().await?;
+        let resp = req.headers(headers).send().await.transport()?;
 
         match check_status(resp).await {
             Err(Error::Unauthorized) if self.auto_refresh && self.has_refresh_token().await => {
@@ -162,7 +160,7 @@ impl Client {
                 match retry {
                     Some(rb) => {
                         let (headers, _) = self.authorized_headers().await?;
-                        let resp = rb.headers(headers).send().await?;
+                        let resp = rb.headers(headers).send().await.transport()?;
                         check_status(resp).await
                     }
                     None => Err(Error::Unauthorized),
@@ -234,9 +232,10 @@ impl Client {
             .post(format!("{}/oauth/token", self.base_url))
             .form(form)
             .send()
-            .await?;
+            .await
+            .transport()?;
         let status = resp.status().as_u16();
-        let body = resp.bytes().await?;
+        let body = resp.bytes().await.transport()?;
         let tokens = parse_token_response(status, &body)?;
         self.store_tokens(&tokens).await;
         Ok(tokens)
@@ -357,7 +356,7 @@ mod tests {
 
     #[tokio::test]
     async fn no_token_authorized_headers_errors() {
-        let c = Client::new("t3k_pub_abc");
+        let c = Client::builder("t3k_pub_abc").build();
         assert!(matches!(
             c.authorized_headers().await,
             Err(Error::Unauthenticated)
@@ -381,7 +380,7 @@ mod tests {
 
     #[tokio::test]
     async fn ensure_authenticated_errors_without_any_token() {
-        let c = Client::new("t3k_pub_abc");
+        let c = Client::builder("t3k_pub_abc").build();
         assert!(matches!(
             c.ensure_authenticated().await,
             Err(Error::Unauthenticated)

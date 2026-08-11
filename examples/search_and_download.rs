@@ -5,7 +5,7 @@
 //!   T3K_ACCESS_TOKEN     a user access token (obtain via the OAuth flow; see `oauth`)
 //! A token-less client would fail every call with `Error::Unauthenticated`.
 
-use tone3000::{Client, ModelListParams, SearchParams};
+use tone3000::Client;
 
 #[tokio::main]
 async fn main() -> tone3000::Result<()> {
@@ -13,12 +13,7 @@ async fn main() -> tone3000::Result<()> {
     let access = std::env::var("T3K_ACCESS_TOKEN").expect("set T3K_ACCESS_TOKEN");
     let client = Client::builder(key).access_token(access).build();
 
-    let results = client
-        .search(SearchParams {
-            query: Some("plexi".into()),
-            ..Default::default()
-        })
-        .await?;
+    let results = client.tones().query("plexi").await?;
 
     let Some(tone) = results.data.first() else {
         println!("no tones found");
@@ -26,7 +21,7 @@ async fn main() -> tone3000::Result<()> {
     };
     println!("tone: {} ({})", tone.title, tone.id);
 
-    let models = client.models(tone.id, ModelListParams::default()).await?;
+    let models = client.models(tone.id).await?;
     if let Some(model) = models.data.first() {
         let bytes = client.download_model(model).await?;
         println!("downloaded {} bytes for model {}", bytes.len(), model.id);

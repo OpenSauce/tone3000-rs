@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
 
-use super::enums::{Format, Gear, License, Size, ToneSort};
+use super::enums::{Format, Gear, License, Size};
 use super::ids::{MakeId, TagId, ToneId, UserId};
 
 /// A user embedded in a tone payload.
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[non_exhaustive]
 pub struct EmbeddedUser {
     pub id: UserId,
     #[serde(default)]
@@ -17,6 +18,7 @@ pub struct EmbeddedUser {
 
 /// A gear make. `id` is absent in search results (RPC) and present in tone detail.
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[non_exhaustive]
 pub struct Make {
     #[serde(default)]
     pub id: Option<MakeId>,
@@ -26,6 +28,7 @@ pub struct Make {
 
 /// A tag. `id` is absent in search results (RPC) and present in tone detail.
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[non_exhaustive]
 pub struct Tag {
     #[serde(default)]
     pub id: Option<TagId>,
@@ -35,6 +38,7 @@ pub struct Tag {
 
 /// A community tone (a capture/profile grouping one or more models).
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[non_exhaustive]
 pub struct Tone {
     pub id: ToneId,
     pub user_id: UserId,
@@ -82,33 +86,6 @@ pub struct Tone {
     pub irs_count: u64,
     #[serde(default)]
     pub custom_models_count: u64,
-}
-
-/// Parameters for [`crate::Client::search`].
-#[derive(Debug, Clone, Default)]
-pub struct SearchParams {
-    pub query: Option<String>,
-    pub gears: Vec<Gear>,
-    /// Model format. Filtering for IRs goes here, not through `gears`.
-    pub format: Option<Format>,
-    pub sizes: Vec<Size>,
-    /// Tag names, matched exactly against a tone's tags. Multiple values are OR'd.
-    pub tags: Vec<String>,
-    /// Make/model names, matched exactly against a tone's makes. OR'd.
-    pub makes: Vec<String>,
-    /// Creator usernames, matched exactly against a tone's `user.username`. OR'd.
-    pub creators: Vec<String>,
-    pub sort: Option<ToneSort>,
-    pub page: Option<u32>,
-    pub page_size: Option<u32>,
-    pub architecture: Option<u32>,
-}
-
-/// Parameters for [`crate::Client::created`] / [`crate::Client::favorited`].
-#[derive(Debug, Clone, Default)]
-pub struct ListParams {
-    pub page: Option<u32>,
-    pub page_size: Option<u32>,
 }
 
 #[cfg(test)]

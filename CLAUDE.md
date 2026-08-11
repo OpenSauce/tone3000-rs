@@ -35,11 +35,12 @@ UI, file placement, token storage) stay in the consuming app.
   with no signal — check that it's still enabled under Actions if a change ever goes
   unnoticed.
 
-## Architecture (Approach A)
+## Architecture
 
-Single configurable `Client` holding an `Auth` state enum (`AppKey` | `Bearer`). Every
-method works in any auth mode; user-scoped calls error clearly when unauthenticated.
-`oauth` and `pkce` are standalone modules — the app owns the redirect transport.
+Single `Client` holding token state. Auth is Bearer-only — every endpoint needs a user
+access token, so there is no anonymous or app-key mode; calls without one return
+`Error::Unauthenticated`. `oauth` and `pkce` are standalone modules — the app owns the
+redirect transport.
 
 ```
 src/
@@ -47,6 +48,16 @@ src/
   models/  tone.rs  model.rs  user.rs
   endpoints/  tones.rs  models.rs  users.rs
 ```
+
+- **List endpoints are fluent request builders**, not param structs: `client.tones()`,
+  `.created()`, `.favorited()`, `.models(tone_id)`, `.users()` each return a builder that
+  implements `IntoFuture`, so it is awaited directly. `tones()` is both browse and search —
+  the API has no separate browse endpoint. Adding a filter is a new builder method, which
+  keeps it a non-breaking change; that is the reason for the pattern.
+- **`reqwest` is not in the public API.** Transport failures surface as the opaque
+  `HttpError` newtype with `is_timeout()`/`is_connect()`/`status()`. reqwest ships a
+  breaking release every year or two and this crate should not have to follow.
+- Domain vocabulary lives in `CONTEXT.md` — read it before renaming a type.
 
 ## Conventions
 

@@ -1,7 +1,5 @@
 mod common;
 
-use tone3000::{SearchParams, UserListParams};
-
 #[tokio::test]
 #[ignore = "live: hits the real TONE3000 API; run via `make test-live`"]
 async fn public_endpoints_contract() {
@@ -9,10 +7,8 @@ async fn public_endpoints_contract() {
     let base = common::api_base();
 
     let results = client
-        .search(SearchParams {
-            query: Some("plexi".into()),
-            ..Default::default()
-        })
+        .tones()
+        .query("plexi")
         .await
         .expect("search succeeds");
     assert!(
@@ -34,10 +30,7 @@ async fn public_endpoints_contract() {
         &serde_json::to_value(&tone).unwrap(),
     );
 
-    let models = client
-        .models(tone_id, Default::default())
-        .await
-        .expect("models list succeeds");
+    let models = client.models(tone_id).await.expect("models list succeeds");
     assert!(!models.data.is_empty(), "tone {tone_id} has no models?");
     for m in &models.data {
         assert_eq!(
@@ -98,10 +91,7 @@ async fn users_list_contract() {
     let (client, access) = common::authed().await;
     let base = common::api_base();
 
-    let users = client
-        .users(UserListParams::default())
-        .await
-        .expect("users list succeeds");
+    let users = client.users().await.expect("users list succeeds");
     assert!(!users.data.is_empty(), "users list should be non-empty");
     for u in &users.data {
         assert!(!u.id.0.is_empty(), "user id should be non-empty");
@@ -138,11 +128,9 @@ async fn enum_vocabulary_is_current() {
     // toward popular tones, and rare vocabulary (e.g. `space`, `experimental`) may never
     // land on page 1 of a popularity-ranked result. New tones surface new vocabulary first.
     let tones = client
-        .search(SearchParams {
-            page_size: Some(100),
-            sort: Some(ToneSort::Newest),
-            ..Default::default()
-        })
+        .tones()
+        .page_size(100)
+        .sort(ToneSort::Newest)
         .await
         .expect("search succeeds");
     assert!(!tones.data.is_empty(), "search returned no tones");
@@ -222,7 +210,7 @@ async fn enum_vocabulary_is_current() {
     );
 
     let models = client
-        .models(sample_tone.id, Default::default())
+        .models(sample_tone.id)
         .await
         .expect("models list succeeds");
     assert!(
