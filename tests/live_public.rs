@@ -154,14 +154,8 @@ async fn enum_vocabulary_is_current() {
         if let Some(Format::Other(v)) = &t.format {
             unknown.push(format!("tone {}: unknown Format {v:?}", t.id));
         }
-        if let Some(License::Other(v)) = &t.license {
-            unknown.push(format!("tone {}: unknown License {v:?}", t.id));
-        }
-        for s in &t.sizes {
-            if let Size::Other(v) = s {
-                unknown.push(format!("tone {}: unknown Size {v:?}", t.id));
-            }
-        }
+        // `license` and `sizes` are checked below, off the single-tone detail fetch —
+        // search list items never carry them (see comment there).
     }
 
     // Every `if let Some(X::Other(v))` above stays silently green if the API renames or
@@ -177,14 +171,6 @@ async fn enum_vocabulary_is_current() {
         tones.data.iter().any(|t| t.gear.is_some()),
         "no tone in the sample carried `gear` — field renamed or dropped upstream?"
     );
-    assert!(
-        tones.data.iter().any(|t| t.license.is_some()),
-        "no tone in the sample carried `license` — field renamed or dropped upstream?"
-    );
-    assert!(
-        tones.data.iter().any(|t| !t.sizes.is_empty()),
-        "no tone in the sample carried `sizes` — field renamed or dropped upstream?"
-    );
 
     // Models carry their own size and architecture vocabulary. Use the first tone with a
     // model in the sample rather than hard-failing on `tones.data[0]`: a tone with zero
@@ -199,6 +185,34 @@ async fn enum_vocabulary_is_current() {
                 tones.data.len()
             )
         });
+
+    // `GET /tones/search` list items omit `is_public`, `license`, `links`, and `sizes` —
+    // only `GET /tones/{id}` (the detail endpoint) carries them, even though both
+    // deserialize into the same lenient `Tone` model. Asserting license/sizes presence off
+    // the search sweep would assert nothing (verified live: search never populates them,
+    // matching the pre-existing search.json fixture); fetch the detail record instead.
+    let detail = client
+        .tone(sample_tone.id)
+        .await
+        .expect("tone detail fetch succeeds");
+    if let Some(License::Other(v)) = &detail.license {
+        unknown.push(format!("tone {}: unknown License {v:?}", detail.id));
+    }
+    for s in &detail.sizes {
+        if let Size::Other(v) = s {
+            unknown.push(format!("tone {}: unknown Size {v:?}", detail.id));
+        }
+    }
+    assert!(
+        detail.license.is_some(),
+        "tone {} detail carried no `license` — field renamed or dropped upstream?",
+        detail.id
+    );
+    assert!(
+        !detail.sizes.is_empty(),
+        "tone {} detail carried no `sizes` — field renamed or dropped upstream?",
+        detail.id
+    );
 
     let models = client
         .models(sample_tone.id, Default::default())
