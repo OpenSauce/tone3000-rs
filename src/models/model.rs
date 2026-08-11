@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::enums::Size;
+use super::enums::{ArchitectureVersion, Size};
 use super::ids::{ModelId, ToneId, UserId};
 
 /// A downloadable model belonging to a tone. `model_url` is the `.nam`/IR file location.
@@ -20,7 +20,7 @@ pub struct Model {
     #[serde(default)]
     pub size: Option<Size>,
     #[serde(default)]
-    pub architecture_version: Option<String>,
+    pub architecture_version: Option<ArchitectureVersion>,
 }
 
 /// Parameters for [`crate::Client::models`].
@@ -47,6 +47,19 @@ mod tests {
         assert_eq!(m.id, ModelId(293886));
         assert_eq!(m.tone_id, ToneId(51949));
         assert_eq!(m.size, Some(Size::Standard));
-        assert_eq!(m.architecture_version.as_deref(), Some("1"));
+        assert_eq!(m.architecture_version, Some(ArchitectureVersion::V1));
+    }
+
+    #[test]
+    fn architecture_version_covers_documented_vocabulary() {
+        for (wire, want) in [
+            ("1", ArchitectureVersion::V1),
+            ("2", ArchitectureVersion::V2),
+            ("custom", ArchitectureVersion::Custom),
+        ] {
+            let got: ArchitectureVersion = serde_json::from_str(&format!("\"{wire}\"")).unwrap();
+            assert_eq!(got, want);
+            assert_eq!(got.as_str(), wire);
+        }
     }
 }

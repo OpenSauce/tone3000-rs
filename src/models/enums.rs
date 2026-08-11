@@ -1,4 +1,4 @@
-//! API enums. Open-vocabulary fields (`gear`, `platform`, `license`, `size`) are
+//! API enums. Open-vocabulary fields (`gear`, `format`, `license`, `size`) are
 //! `#[non_exhaustive]` with an `Other(String)` catch-all so unknown values never fail a
 //! response. Sort enums are inputs we send, with the exact wire strings the API expects.
 
@@ -52,18 +52,28 @@ macro_rules! open_enum {
 
 open_enum!(
     /// Gear category.
+    ///
+    /// Two values are being retired by the API:
+    /// - `full-rig` is deprecated — responses now emit `amp-cab` instead, though `full-rig`
+    ///   is still accepted as search input.
+    /// - `ir` is being retired as a gear; filter on [`Format::Ir`] instead.
     Gear {
         Amp => "amp",
+        AmpCab => "amp-cab",
         FullRig => "full-rig",
         Pedal => "pedal",
         Outboard => "outboard",
+        Cab => "cab",
+        Space => "space",
+        Experimental => "experimental",
         Ir => "ir",
     }
 );
 
 open_enum!(
-    /// Capture platform / file format.
-    Platform {
+    /// Model file format. Renamed from `platform` by the API in 2026; the value set is
+    /// unchanged.
+    Format {
         Nam => "nam",
         Ir => "ir",
         AidaX => "aida-x",
@@ -93,6 +103,15 @@ open_enum!(
         Lite => "lite",
         Feather => "feather",
         Nano => "nano",
+        Custom => "custom",
+    }
+);
+
+open_enum!(
+    /// Neural model architecture version. `custom` covers user-supplied architectures.
+    ArchitectureVersion {
+        V1 => "1",
+        V2 => "2",
         Custom => "custom",
     }
 );
@@ -157,9 +176,31 @@ mod tests {
 
     #[test]
     fn unknown_value_falls_back_to_other() {
-        let p: Platform = serde_json::from_str("\"future-format\"").unwrap();
-        assert_eq!(p, Platform::Other("future-format".into()));
-        assert_eq!(serde_json::to_string(&p).unwrap(), "\"future-format\"");
+        let f: Format = serde_json::from_str("\"future-format\"").unwrap();
+        assert_eq!(f, Format::Other("future-format".into()));
+        assert_eq!(serde_json::to_string(&f).unwrap(), "\"future-format\"");
+    }
+
+    #[test]
+    fn gear_covers_current_api_vocabulary() {
+        for wire in [
+            "amp",
+            "amp-cab",
+            "full-rig",
+            "pedal",
+            "outboard",
+            "cab",
+            "space",
+            "experimental",
+            "ir",
+        ] {
+            let g: Gear = serde_json::from_str(&format!("\"{wire}\"")).unwrap();
+            assert!(
+                !matches!(g, Gear::Other(_)),
+                "{wire} should be a known Gear variant, got {g:?}"
+            );
+            assert_eq!(g.as_str(), wire);
+        }
     }
 
     #[test]

@@ -9,7 +9,7 @@ mod token;
 mod tone;
 mod user;
 
-pub use enums::{Gear, License, Platform, Size, ToneSort, UserSort};
+pub use enums::{ArchitectureVersion, Format, Gear, License, Size, ToneSort, UserSort};
 pub use ids::{MakeId, ModelId, TagId, ToneId, UserId};
 pub use model::{Model, ModelListParams};
 pub use page::Page;
