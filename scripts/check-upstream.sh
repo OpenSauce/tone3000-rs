@@ -12,6 +12,11 @@ if ! command -v gh >/dev/null 2>&1; then
   exit 1
 fi
 
+init=0
+if [[ "${1:-}" == "--init" ]]; then
+  init=1
+fi
+
 PINNED_FILE="scripts/upstream-types.sha"
 REPO="tone-3000/api"
 FILE="src/types.ts"
@@ -19,9 +24,23 @@ FILE="src/types.ts"
 current="$(gh api "repos/$REPO/contents/$FILE" --jq .sha)"
 
 if [[ ! -f "$PINNED_FILE" ]]; then
-  echo "$current" > "$PINNED_FILE"
-  echo "pinned $REPO/$FILE at $current"
-  exit 0
+  if [[ "$init" -eq 1 ]]; then
+    echo "$current" > "$PINNED_FILE"
+    echo "pinned $REPO/$FILE at $current"
+    exit 0
+  fi
+  echo "error: $PINNED_FILE is missing." >&2
+  echo "This is a hard error, not a silent self-pin: a missing pin file must never let" >&2
+  echo "the guard pass having compared nothing. To create the initial pin, run:" >&2
+  echo "  $0 --init" >&2
+  exit 1
+fi
+
+if [[ "$init" -eq 1 ]]; then
+  echo "error: $PINNED_FILE already exists; refusing to overwrite via --init." >&2
+  echo "To re-pin after reviewing a real drift, write it directly:" >&2
+  echo "  echo \"\$(gh api repos/$REPO/contents/$FILE --jq .sha)\" > $PINNED_FILE" >&2
+  exit 1
 fi
 
 pinned="$(tr -d '[:space:]' < "$PINNED_FILE")"

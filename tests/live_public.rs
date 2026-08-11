@@ -175,13 +175,20 @@ async fn enum_vocabulary_is_current() {
     // Models carry their own size and architecture vocabulary. Use the first tone with a
     // model in the sample rather than hard-failing on `tones.data[0]`: a tone with zero
     // models is not itself a sign of drift, just a confusing place to fail.
+    //
+    // Also require `format == Nam`: `sizes` (standard/lite/feather/nano) is a NAM
+    // neural-architecture concept and is structurally null on every IR tone (impulse
+    // responses don't have a network size) — confirmed live across multiple IR/NAM
+    // samples. Picking a format-agnostic tone here would make the sizes/size assertions
+    // below vacuous whenever the sample happened to land on an IR tone, which it did.
     let sample_tone = tones
         .data
         .iter()
-        .find(|t| t.models_count > 0)
+        .find(|t| t.models_count > 0 && t.format == Some(Format::Nam))
         .unwrap_or_else(|| {
             panic!(
-                "no tone in the sample of {} has any models",
+                "no NAM-format tone with models was in the sample of {} tones — \
+                 unexpected, since NAM tones dominate the library",
                 tones.data.len()
             )
         });

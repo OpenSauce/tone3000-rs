@@ -1,6 +1,7 @@
-//! API enums. Open-vocabulary fields (`gear`, `format`, `license`, `size`) are
-//! `#[non_exhaustive]` with an `Other(String)` catch-all so unknown values never fail a
-//! response. Sort enums are inputs we send, with the exact wire strings the API expects.
+//! API enums. Open-vocabulary fields (`gear`, `format`, `license`, `size`,
+//! `architecture_version`) are `#[non_exhaustive]` with an `Other(String)` catch-all so
+//! unknown values never fail a response. Sort enums are inputs we send, with the exact
+//! wire strings the API expects.
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
