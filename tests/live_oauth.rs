@@ -2,7 +2,7 @@ mod common;
 
 use std::io::{self, Write};
 
-use tone3000::{Client, Prompt, authorize_url, generate_pkce};
+use tone3000::{AuthorizeOptions, Client, Prompt, authorize_url, generate_pkce};
 
 #[tokio::test]
 #[ignore = "interactive: opens an OAuth login; run via `make test-oauth`"]
@@ -23,6 +23,7 @@ async fn oauth_exchange_code_interactive() {
         &pkce.challenge,
         &state,
         Prompt::Standard,
+        AuthorizeOptions::default(),
     );
 
     println!(

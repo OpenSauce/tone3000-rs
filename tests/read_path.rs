@@ -50,6 +50,46 @@ async fn search_parses_fixture_and_sends_bearer() {
 }
 
 #[tokio::test]
+async fn search_serializes_all_filters() {
+    use tone3000::{Format, Gear, Size};
+
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/tones/search"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_string(include_str!("fixtures/search.json")),
+        )
+        .mount(&server)
+        .await;
+
+    client(&server)
+        .search(SearchParams {
+            query: Some("plexi".into()),
+            gears: vec![Gear::Amp, Gear::Pedal],
+            format: Some(Format::Nam),
+            sizes: vec![Size::Standard],
+            tags: vec!["clean".into(), "crunch".into()],
+            makes: vec!["Marshall".into()],
+            creators: vec!["brucew".into(), "akka5".into()],
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let req = &server.received_requests().await.unwrap()[0];
+    let q: std::collections::HashMap<_, _> = req.url.query_pairs().into_owned().collect();
+
+    assert_eq!(q.get("gears").unwrap(), "amp_pedal");
+    assert_eq!(q.get("format").unwrap(), "nam");
+    assert_eq!(q.get("sizes").unwrap(), "standard");
+    assert_eq!(q.get("tags").unwrap(), "clean_crunch");
+    assert_eq!(q.get("makes").unwrap(), "Marshall");
+    // creators is comma-joined, unlike every other multi-value filter. This asymmetry is
+    // in the API, not a typo — see tone-3000/api src/tone3000-client.ts.
+    assert_eq!(q.get("creators").unwrap(), "brucew,akka5");
+}
+
+#[tokio::test]
 async fn tone_parses_fixture() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))

@@ -24,6 +24,16 @@ UI, file placement, token storage) stay in the consuming app.
 - **No live network in default/CI tests.** Use `wiremock` + scrubbed response fixtures.
   An opt-in `#[ignore]`d live suite (`tests/live_*.rs`) smoke-tests the real API — run it
   with `make test-live` / `make test-oauth`; it never runs under plain `cargo test`.
+- **Upstream watch.** `make check-upstream` (and a weekly CI job) compares the blob SHA of
+  `tone-3000/api`'s `src/types.ts` against `scripts/upstream-types.sha`. It covers the API's
+  *input* surface — query params, enum vocabularies, OAuth options. `types.ts` is
+  documentation and has been wrong before; treat a change as a trigger to investigate, not a
+  source to sync from. A full response-shape snapshot guard is designed in
+  `docs/superpowers/specs/2026-08-11-api-drift-guard-design.md` but deliberately not built —
+  revisit if drift ever slips past this watch. GitHub auto-disables scheduled workflows
+  after 60 days without repository activity, so on a quiet repo this watch can stop firing
+  with no signal — check that it's still enabled under Actions if a change ever goes
+  unnoticed.
 
 ## Architecture (Approach A)
 

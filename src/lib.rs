@@ -28,9 +28,9 @@ pub mod pkce;
 pub use client::{Client, ClientBuilder, DEFAULT_BASE_URL};
 pub use error::{Error, Result};
 pub use models::{
-    EmbeddedUser, Gear, License, ListParams, Make, MakeId, Model, ModelId, ModelListParams, Page,
-    Platform, PublicUser, SearchParams, Size, Tag, TagId, Tokens, Tone, ToneId, ToneSort, User,
-    UserId, UserListParams, UserSort,
+    ArchitectureVersion, EmbeddedUser, Format, Gear, License, ListParams, Make, MakeId, Model,
+    ModelId, ModelListParams, Page, PublicUser, SearchParams, Size, Tag, TagId, Tokens, Tone,
+    ToneId, ToneSort, User, UserId, UserListParams, UserSort,
 };
-pub use oauth::{Prompt, authorize_url};
+pub use oauth::{AuthorizeOptions, Prompt, authorize_url};
 pub use pkce::{Pkce, generate as generate_pkce};

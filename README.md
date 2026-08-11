@@ -40,6 +40,7 @@ let pkce = tone3000::pkce::generate();
 let state = /* an unguessable value you store and verify on the callback */;
 let url = tone3000::oauth::authorize_url(
     "t3k_pub_…", "http://localhost:8765/callback", &pkce.challenge, state, tone3000::Prompt::Standard,
+    tone3000::AuthorizeOptions::default(),
 );
 // open `url`, capture the redirected `code`, then:
 let tokens = client.exchange_code(&code, &pkce.verifier, "http://localhost:8765/callback").await?;
@@ -77,6 +78,19 @@ let runtime = nam_rs::Model::from_nam(&nam)?;
 
 (`nam-rs`'s loaders are synchronous; call them after the async download completes, or wrap
 `from_file` in `tokio::task::spawn_blocking` for large models on an async runtime.)
+
+## Development
+
+### Keeping up with API changes
+
+| Command | What it does | Needs TONE3000 credentials |
+|---|---|---|
+| `make check-upstream` | Compares upstream `types.ts` against the pinned SHA | No |
+| `make test-live` | Live contract + enum vocabulary checks | Yes |
+
+`make check-upstream` also runs weekly in CI. Live checks are local-only by design.
+`make check-upstream` needs no TONE3000 credentials, but does require an authenticated
+[`gh`](https://cli.github.com/) (it reads a public GitHub repo via the API).
 
 ## License
 

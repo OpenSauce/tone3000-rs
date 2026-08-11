@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::enums::{Gear, License, Platform, Size, ToneSort};
+use super::enums::{Format, Gear, License, Size, ToneSort};
 use super::ids::{MakeId, TagId, ToneId, UserId};
 
 /// A user embedded in a tone payload.
@@ -47,7 +47,7 @@ pub struct Tone {
     #[serde(default)]
     pub gear: Option<Gear>,
     #[serde(default)]
-    pub platform: Option<Platform>,
+    pub format: Option<Format>,
     #[serde(default)]
     pub license: Option<License>,
     #[serde(default, deserialize_with = "crate::models::de_null_as_default")]
@@ -89,7 +89,15 @@ pub struct Tone {
 pub struct SearchParams {
     pub query: Option<String>,
     pub gears: Vec<Gear>,
+    /// Model format. Filtering for IRs goes here, not through `gears`.
+    pub format: Option<Format>,
     pub sizes: Vec<Size>,
+    /// Tag names, matched exactly against a tone's tags. Multiple values are OR'd.
+    pub tags: Vec<String>,
+    /// Make/model names, matched exactly against a tone's makes. OR'd.
+    pub makes: Vec<String>,
+    /// Creator usernames, matched exactly against a tone's `user.username`. OR'd.
+    pub creators: Vec<String>,
     pub sort: Option<ToneSort>,
     pub page: Option<u32>,
     pub page_size: Option<u32>,
@@ -111,7 +119,7 @@ mod tests {
     fn tone_parses_core_fields() {
         let json = r#"{
             "id": 51949, "user_id": "57af", "title": "Plexi 51", "gear": "amp",
-            "license": "t3k", "platform": "nam", "makes": [{"name": "Marshall Plexi"}],
+            "license": "t3k", "format": "nam", "makes": [{"name": "Marshall Plexi"}],
             "user": {"id": "57af", "username": "brucew", "url": "u"},
             "models_count": 6, "a1_models_count": 3
         }"#;
@@ -120,6 +128,7 @@ mod tests {
         assert_eq!(tone.title, "Plexi 51");
         assert_eq!(tone.gear, Some(Gear::Amp));
         assert_eq!(tone.license, Some(License::T3k));
+        assert_eq!(tone.format, Some(Format::Nam));
         assert_eq!(tone.makes[0].name, "Marshall Plexi");
         assert_eq!(tone.user.as_ref().unwrap().username, "brucew");
         assert_eq!(tone.models_count, 6);
