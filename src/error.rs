@@ -6,7 +6,7 @@ use std::time::Duration;
 pub enum Error {
     /// Transport-level failure (DNS, TLS, connection, timeout).
     #[error("http transport error: {0}")]
-    Http(#[from] reqwest::Error),
+    Http(#[from] HttpError),
 
     /// Non-2xx response that does not map to a more specific variant.
     #[error("unexpected status {code}: {body}")]
@@ -47,6 +47,67 @@ pub enum Error {
         error: String,
         description: Option<String>,
     },
+}
+
+impl Error {
+    /// The request timed out.
+    pub fn is_timeout(&self) -> bool {
+        matches!(self, Error::Http(e) if e.is_timeout())
+    }
+
+    /// The failure happened while establishing the connection.
+    pub fn is_connect(&self) -> bool {
+        matches!(self, Error::Http(e) if e.is_connect())
+    }
+}
+
+/// A transport-level failure.
+///
+/// The HTTP client behind this is an implementation detail and may be swapped or
+/// version-bumped without a breaking release, so the underlying error type is not part of
+/// this crate's public API. The predicates below cover what callers actually branch on.
+#[derive(Debug)]
+pub struct HttpError(reqwest::Error);
+
+impl HttpError {
+    /// The request timed out.
+    pub fn is_timeout(&self) -> bool {
+        self.0.is_timeout()
+    }
+
+    /// The failure happened while establishing the connection.
+    pub fn is_connect(&self) -> bool {
+        self.0.is_connect()
+    }
+
+    /// The status code, when the failure carried one.
+    pub fn status(&self) -> Option<u16> {
+        self.0.status().map(|s| s.as_u16())
+    }
+}
+
+impl std::fmt::Display for HttpError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl std::error::Error for HttpError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.0.source()
+    }
+}
+
+impl From<reqwest::Error> for HttpError {
+    fn from(e: reqwest::Error) -> Self {
+        HttpError(e)
+    }
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(e: reqwest::Error) -> Self {
+        Error::Http(HttpError(e))
+    }
 }
 
 /// Crate result alias.

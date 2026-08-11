@@ -1,3 +1,6 @@
+use std::future::{Future, IntoFuture};
+use std::pin::Pin;
+
 use bytes::Bytes;
 use futures_util::StreamExt;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
@@ -5,26 +8,15 @@ use tokio::io::{AsyncWrite, AsyncWriteExt};
 use crate::client::Client;
 use crate::error::Result;
 use crate::http::json;
-use crate::models::{Model, ModelId, ModelListParams, Page, ToneId};
+use crate::models::{Model, ModelId, Page, ToneId};
 
 impl Client {
     /// List the models belonging to a tone.
-    pub async fn models(&self, tone_id: ToneId, params: ModelListParams) -> Result<Page<Model>> {
-        let mut req = self
-            .http
-            .get(format!("{}/models", self.base_url))
-            .query(&[("tone_id", tone_id.to_string())]);
-        if let Some(page) = params.page {
-            req = req.query(&[("page", page)]);
-        }
-        if let Some(page_size) = params.page_size {
-            req = req.query(&[("page_size", page_size)]);
-        }
-        if let Some(arch) = params.architecture {
-            req = req.query(&[("architecture", arch)]);
-        }
-        let resp = self.send(req).await?;
-        json(resp).await
+    ///
+    /// A tone's detail response does not embed its models, so a detail screen is this
+    /// call plus [`Client::tone`].
+    pub fn models(&self, tone_id: ToneId) -> ModelList<'_> {
+        ModelList::new(self, tone_id)
     }
 
     /// Fetch a single model by id.
@@ -69,5 +61,74 @@ impl Client {
         }
         writer.flush().await?;
         Ok(written)
+    }
+}
+
+/// A pending listing of a tone's models, built by [`Client::models`].
+///
+/// Await it directly to send the request; every method is optional.
+pub struct ModelList<'a> {
+    client: &'a Client,
+    tone_id: ToneId,
+    page: Option<u32>,
+    page_size: Option<u32>,
+    architecture: Option<u32>,
+}
+
+impl<'a> ModelList<'a> {
+    fn new(client: &'a Client, tone_id: ToneId) -> Self {
+        Self {
+            client,
+            tone_id,
+            page: None,
+            page_size: None,
+            architecture: None,
+        }
+    }
+
+    /// Request a specific 1-based page.
+    pub fn page(mut self, page: u32) -> Self {
+        self.page = Some(page);
+        self
+    }
+
+    /// Set how many models a page holds.
+    pub fn page_size(mut self, page_size: u32) -> Self {
+        self.page_size = Some(page_size);
+        self
+    }
+
+    /// Restrict to models of a given neural architecture version.
+    pub fn architecture(mut self, architecture: u32) -> Self {
+        self.architecture = Some(architecture);
+        self
+    }
+
+    async fn send(self) -> Result<Page<Model>> {
+        let mut req = self
+            .client
+            .http
+            .get(format!("{}/models", self.client.base_url))
+            .query(&[("tone_id", self.tone_id.to_string())]);
+        if let Some(page) = self.page {
+            req = req.query(&[("page", page)]);
+        }
+        if let Some(page_size) = self.page_size {
+            req = req.query(&[("page_size", page_size)]);
+        }
+        if let Some(arch) = self.architecture {
+            req = req.query(&[("architecture", arch)]);
+        }
+        let resp = self.client.send(req).await?;
+        json(resp).await
+    }
+}
+
+impl<'a> IntoFuture for ModelList<'a> {
+    type Output = Result<Page<Model>>;
+    type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
+
+    fn into_future(self) -> Self::IntoFuture {
+        Box::pin(self.send())
     }
 }

@@ -23,14 +23,6 @@ pub struct Model {
     pub architecture_version: Option<ArchitectureVersion>,
 }
 
-/// Parameters for [`crate::Client::models`].
-#[derive(Debug, Clone, Default)]
-pub struct ModelListParams {
-    pub page: Option<u32>,
-    pub page_size: Option<u32>,
-    pub architecture: Option<u32>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

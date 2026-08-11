@@ -1,4 +1,4 @@
-use tone3000::{Client, SearchParams};
+use tone3000::Client;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -99,7 +99,7 @@ async fn proactive_refresh_fires_on_seeded_expiry() {
         .auto_refresh(true)
         .build();
 
-    let res = client.search(SearchParams::default()).await.unwrap();
+    let res = client.tones().await.unwrap();
     assert_eq!(res.total, 0);
 }
 
@@ -135,7 +135,7 @@ async fn reactive_refresh_retries_once_on_401() {
         .auto_refresh(true)
         .build();
 
-    let res = client.search(SearchParams::default()).await.unwrap();
+    let res = client.tones().await.unwrap();
     assert_eq!(res.total, 0);
 }
 
@@ -161,13 +161,13 @@ async fn no_token_but_refresh_mints_access_token() {
         .refresh_token("RT")
         .build();
 
-    let res = client.search(SearchParams::default()).await.unwrap();
+    let res = client.tones().await.unwrap();
     assert_eq!(res.total, 0);
 }
 
 #[tokio::test]
 async fn refresh_without_token_errors_unauthenticated() {
-    let client = Client::new("t3k_pub_x");
+    let client = Client::builder("t3k_pub_x").build();
     let err = client.refresh().await.unwrap_err();
     assert!(matches!(err, tone3000::Error::Unauthenticated));
 }

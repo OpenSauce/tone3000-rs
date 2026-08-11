@@ -39,15 +39,13 @@ pub struct Client {
 }
 
 impl Client {
-    /// Create a client with no token yet (useful for driving the OAuth bootstrap).
-    ///
-    /// API calls return [`Error::Unauthenticated`] until an access token is set via the
-    /// builder or obtained through `exchange_code`/`refresh`.
-    pub fn new(publishable_key: impl Into<String>) -> Self {
-        ClientBuilder::new(publishable_key).build()
-    }
-
     /// Start building a configured client.
+    ///
+    /// Every TONE3000 endpoint requires a user access token, so a client built without
+    /// one — via [`access_token`](ClientBuilder::access_token) or
+    /// [`refresh_token`](ClientBuilder::refresh_token) — is only useful for driving the
+    /// OAuth bootstrap. API calls on it return [`Error::Unauthenticated`] until
+    /// `exchange_code`/`refresh` mints a token.
     pub fn builder(publishable_key: impl Into<String>) -> ClientBuilder {
         ClientBuilder::new(publishable_key)
     }
@@ -357,7 +355,7 @@ mod tests {
 
     #[tokio::test]
     async fn no_token_authorized_headers_errors() {
-        let c = Client::new("t3k_pub_abc");
+        let c = Client::builder("t3k_pub_abc").build();
         assert!(matches!(
             c.authorized_headers().await,
             Err(Error::Unauthenticated)
@@ -381,7 +379,7 @@ mod tests {
 
     #[tokio::test]
     async fn ensure_authenticated_errors_without_any_token() {
-        let c = Client::new("t3k_pub_abc");
+        let c = Client::builder("t3k_pub_abc").build();
         assert!(matches!(
             c.ensure_authenticated().await,
             Err(Error::Unauthenticated)

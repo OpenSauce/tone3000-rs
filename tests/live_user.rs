@@ -1,7 +1,5 @@
 mod common;
 
-use tone3000::ListParams;
-
 #[tokio::test]
 #[ignore = "live: hits the real TONE3000 API; run via `make test-live`"]
 async fn user_scoped_contract() {
@@ -16,17 +14,11 @@ async fn user_scoped_contract() {
     let raw = common::raw_json(&format!("{base}/user"), &access).await;
     common::drift_warn("GET /user", &raw, &serde_json::to_value(&user).unwrap());
 
-    let created = client
-        .created(ListParams::default())
-        .await
-        .expect("created tones succeeds");
+    let created = client.created().await.expect("created tones succeeds");
     for t in &created.data {
         assert!(t.id.0 > 0, "created tone id should be set");
     }
-    let favorited = client
-        .favorited(ListParams::default())
-        .await
-        .expect("favorited tones succeeds");
+    let favorited = client.favorited().await.expect("favorited tones succeeds");
     for t in &favorited.data {
         assert!(t.id.0 > 0, "favorited tone id should be set");
     }

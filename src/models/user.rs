@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-use super::enums::UserSort;
 use super::ids::UserId;
 
 /// The authenticated user's profile (`GET /user`).
@@ -45,15 +44,6 @@ pub struct PublicUser {
     pub tones_count: u64,
     #[serde(default)]
     pub url: String,
-}
-
-/// Parameters for [`crate::Client::users`].
-#[derive(Debug, Clone, Default)]
-pub struct UserListParams {
-    pub sort: Option<UserSort>,
-    pub page: Option<u32>,
-    pub page_size: Option<u32>,
-    pub query: Option<String>,
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-use tone3000::{Client, ListParams, Model, ModelId, SearchParams, ToneId, UserListParams};
+use tone3000::{Client, Model, ModelId, ToneId};
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -36,13 +36,7 @@ async fn search_parses_fixture_and_sends_bearer() {
         .mount(&server)
         .await;
 
-    let results = client(&server)
-        .search(SearchParams {
-            query: Some("plexi".into()),
-            ..Default::default()
-        })
-        .await
-        .unwrap();
+    let results = client(&server).tones().query("plexi").await.unwrap();
 
     assert_eq!(results.total, 254);
     assert_eq!(results.data[0].id, ToneId(51949));
@@ -63,16 +57,14 @@ async fn search_serializes_all_filters() {
         .await;
 
     client(&server)
-        .search(SearchParams {
-            query: Some("plexi".into()),
-            gears: vec![Gear::Amp, Gear::Pedal],
-            format: Some(Format::Nam),
-            sizes: vec![Size::Standard],
-            tags: vec!["clean".into(), "crunch".into()],
-            makes: vec!["Marshall".into()],
-            creators: vec!["brucew".into(), "akka5".into()],
-            ..Default::default()
-        })
+        .tones()
+        .query("plexi")
+        .gears([Gear::Amp, Gear::Pedal])
+        .format(Format::Nam)
+        .size(Size::Standard)
+        .tags(["clean", "crunch"])
+        .make("Marshall")
+        .creators(["brucew", "akka5"])
         .await
         .unwrap();
 
@@ -129,10 +121,7 @@ async fn models_parses_paginated_fixture() {
         .mount(&server)
         .await;
 
-    let page = client(&server)
-        .models(ToneId(51949), Default::default())
-        .await
-        .unwrap();
+    let page = client(&server).models(ToneId(51949)).await.unwrap();
     assert_eq!(page.total, 3);
     assert_eq!(page.data[0].id, ModelId(293886));
     assert_eq!(page.data[0].tone_id, ToneId(51949));
@@ -149,10 +138,7 @@ async fn users_parses_paginated_fixture() {
         .mount(&server)
         .await;
 
-    let page = client(&server)
-        .users(UserListParams::default())
-        .await
-        .unwrap();
+    let page = client(&server).users().await.unwrap();
     assert_eq!(page.data[0].username, "akka5");
     assert_eq!(page.data[0].tones_count, 153);
 }
@@ -168,10 +154,7 @@ async fn created_parses_empty_page() {
         .mount(&server)
         .await;
 
-    let page = client(&server)
-        .created(ListParams::default())
-        .await
-        .unwrap();
+    let page = client(&server).created().await.unwrap();
     assert_eq!(page.total, 0);
     assert!(page.data.is_empty());
 }
@@ -236,16 +219,52 @@ async fn forbidden_maps_to_forbidden_error() {
         .mount(&server)
         .await;
 
-    let err = client(&server)
-        .search(SearchParams::default())
-        .await
-        .unwrap_err();
+    let err = client(&server).tones().await.unwrap_err();
     assert!(matches!(err, tone3000::Error::Forbidden));
 }
 
 #[tokio::test]
 async fn call_without_token_errors_unauthenticated() {
-    let client = Client::new("t3k_pub_x");
+    let client = Client::builder("t3k_pub_x").build();
     let err = client.user().await.unwrap_err();
     assert!(matches!(err, tone3000::Error::Unauthenticated));
+}
+
+#[tokio::test]
+async fn list_builders_serialize_pagination() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(r#"{"data":[]}"#))
+        .mount(&server)
+        .await;
+
+    let c = client(&server);
+    c.tones().page(2).page_size(24).await.unwrap();
+    c.created().page(3).await.unwrap();
+    c.favorited().page_size(5).await.unwrap();
+    c.models(ToneId(51949)).page(4).await.unwrap();
+    c.users().query("akka").page_size(10).await.unwrap();
+
+    let reqs = server.received_requests().await.unwrap();
+    let q = |i: usize| -> std::collections::HashMap<String, String> {
+        reqs[i].url.query_pairs().into_owned().collect()
+    };
+
+    assert_eq!(reqs[0].url.path(), "/tones/search");
+    assert_eq!(q(0).get("page").unwrap(), "2");
+    assert_eq!(q(0).get("page_size").unwrap(), "24");
+
+    assert_eq!(reqs[1].url.path(), "/tones/created");
+    assert_eq!(q(1).get("page").unwrap(), "3");
+
+    assert_eq!(reqs[2].url.path(), "/tones/favorited");
+    assert_eq!(q(2).get("page_size").unwrap(), "5");
+
+    assert_eq!(reqs[3].url.path(), "/models");
+    assert_eq!(q(3).get("tone_id").unwrap(), "51949");
+    assert_eq!(q(3).get("page").unwrap(), "4");
+
+    assert_eq!(reqs[4].url.path(), "/users");
+    assert_eq!(q(4).get("query").unwrap(), "akka");
+    assert_eq!(q(4).get("page_size").unwrap(), "10");
 }

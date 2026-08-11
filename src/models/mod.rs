@@ -11,11 +11,11 @@ mod user;
 
 pub use enums::{ArchitectureVersion, Format, Gear, License, Size, ToneSort, UserSort};
 pub use ids::{MakeId, ModelId, TagId, ToneId, UserId};
-pub use model::{Model, ModelListParams};
+pub use model::Model;
 pub use page::Page;
 pub use token::Tokens;
-pub use tone::{EmbeddedUser, ListParams, Make, SearchParams, Tag, Tone};
-pub use user::{PublicUser, User, UserListParams};
+pub use tone::{EmbeddedUser, Make, Tag, Tone};
+pub use user::{PublicUser, User};
 
 /// Deserialize a JSON `null` value as `Default::default()` instead of failing.
 /// Used on `Vec<T>` fields that the API sometimes returns as explicit `null`.
