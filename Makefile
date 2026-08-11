@@ -3,7 +3,7 @@
 -include .env
 export
 
-.PHONY: test test-live test-oauth fmt clippy
+.PHONY: test test-live test-oauth fmt clippy check-upstream
 
 # Offline suite: unit + wiremock. Live tests are #[ignore]d and excluded here.
 test:
@@ -22,3 +22,7 @@ fmt:
 
 clippy:
 	cargo clippy --all-targets -- -D warnings
+
+# Watch the official type definitions for changes. Makes no TONE3000 API calls.
+check-upstream:
+	scripts/check-upstream.sh

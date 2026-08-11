@@ -1,0 +1,20 @@
+name: upstream-watch
+
+# Weekly early warning that TONE3000 changed its published type definitions.
+# Deliberately NOT a live API test: refresh tokens rotate, so a live job would need a PAT
+# with secrets-write scope to keep its own credential alive. This needs no secrets at all.
+on:
+  schedule:
+    - cron: '17 6 * * 1'  # Mondays 06:17 UTC
+  workflow_dispatch:
+
+jobs:
+  upstream:
+    # Never on pull requests; never on forks.
+    if: github.repository == 'OpenSauce/tone3000-rs'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/check-upstream.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

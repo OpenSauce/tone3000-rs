@@ -79,6 +79,17 @@ let runtime = nam_rs::Model::from_nam(&nam)?;
 (`nam-rs`'s loaders are synchronous; call them after the async download completes, or wrap
 `from_file` in `tokio::task::spawn_blocking` for large models on an async runtime.)
 
+## Development
+
+### Keeping up with API changes
+
+| Command | What it does | Needs credentials |
+|---|---|---|
+| `make check-upstream` | Compares upstream `types.ts` against the pinned SHA | No |
+| `make test-live` | Live contract + enum vocabulary checks | Yes |
+
+`make check-upstream` also runs weekly in CI. Live checks are local-only by design.
+
 ## License
 
 MIT
