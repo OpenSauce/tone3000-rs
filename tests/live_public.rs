@@ -166,6 +166,11 @@ async fn enum_vocabulary_is_current() {
         .models(tones.data[0].id, Default::default())
         .await
         .expect("models list succeeds");
+    assert!(
+        !models.data.is_empty(),
+        "tone {} has no models?",
+        tones.data[0].id
+    );
     for m in &models.data {
         if let Some(Size::Other(v)) = &m.size {
             unknown.push(format!("model {}: unknown Size {v:?}", m.id));
