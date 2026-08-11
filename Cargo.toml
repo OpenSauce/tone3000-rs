@@ -23,6 +23,9 @@ futures-util = "0.3"
 
 [dev-dependencies]
 wiremock = "0.6"
+# Used by the play_with_nam_rs example and the README doctest, to prove the pairing
+# this crate advertises actually compiles. Never reaches consumers.
+nam-rs = "0.4"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-util"] }
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
 serde_json = "1"

@@ -1,20 +1,4 @@
-//! Async Rust client for the [TONE3000](https://www.tone3000.com) API (v1).
-//!
-//! ```no_run
-//! # async fn run() -> tone3000::Result<()> {
-//! use tone3000::Client;
-//! // Every call needs an OAuth access token; see `oauth`/`exchange_code`/`refresh`.
-//! let client = Client::builder("t3k_pub_your_key")
-//!     .access_token("user_access_token")
-//!     .build();
-//! let results = client.tones().query("plexi").await?;
-//! for tone in results.data {
-//!     println!("{}: {}", tone.id, tone.title);
-//! }
-//! # Ok(())
-//! # }
-//! ```
-
+#![doc = include_str!("../README.md")]
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 #![deny(rustdoc::broken_intra_doc_links)]

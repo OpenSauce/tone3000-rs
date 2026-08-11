@@ -19,9 +19,12 @@ impl Client {
     /// # This returns one architecture at a time
     ///
     /// The API defaults to architecture 1 and there is no "all architectures" value, so
-    /// this returns *fewer* models than [`Tone::models_count`] whenever a tone has been
-    /// captured on more than one. Tone 6298, for example, reports 223 models
-    /// (112 on v1, 111 on v2) and a bare call returns 112.
+    /// a bare call returns only the v1 models. Tone 6298 has 112 on v1 and 111 on v2; this
+    /// returns 112 of them.
+    ///
+    /// This bites hardest alongside [`Tone::models_count`], which reports the
+    /// cross-architecture total when the tone came from search — 223 for that tone. A list
+    /// screen saying "223 models" whose detail view lists 112 is the same bug seen twice.
     ///
     /// To show everything, request each architecture the tone reports:
     ///

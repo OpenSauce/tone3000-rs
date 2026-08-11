@@ -136,13 +136,22 @@ pub struct Tone {
     /// The tone's page on tone3000.com — the link to show a user.
     #[serde(default)]
     pub url: String,
-    /// Total models across every architecture.
+    /// How many models the tone has — **but the API means two different things by this
+    /// depending on where the tone came from.**
     ///
-    /// Note this is the sum of [`a1_models_count`](Self::a1_models_count),
-    /// [`a2_models_count`](Self::a2_models_count), [`irs_count`](Self::irs_count) and
-    /// [`custom_models_count`](Self::custom_models_count) — so it is normally *larger*
-    /// than what [`Client::models`](crate::Client::models) returns, which covers one
-    /// architecture at a time. See that method for why.
+    /// From [`Client::tones`](crate::Client::tones) (search) it is the total across every
+    /// architecture. From [`Client::tone`](crate::Client::tone) (detail) it is the
+    /// architecture-1 count alone. Measured on three tones:
+    ///
+    /// | Tone | via search | via detail | `a1` / `a2` |
+    /// |------|-----------|-----------|-------------|
+    /// | 19 | 6 | 3 | 3 / 3 |
+    /// | 51949 | 6 | 3 | 3 / 3 |
+    /// | 6298 | 223 | 112 | 112 / 111 |
+    ///
+    /// So a list screen built from search results can promise 223 models while the detail
+    /// screen shows 112. To count reliably, add up the per-architecture fields yourself;
+    /// to *list* them, see [`Client::models`](crate::Client::models).
     #[serde(default)]
     pub models_count: u64,
     /// How many users have favourited this tone.
