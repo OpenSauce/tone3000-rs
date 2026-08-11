@@ -5,7 +5,7 @@ use url::Url;
 
 use crate::client::DEFAULT_BASE_URL;
 use crate::error::{Error, Result};
-use crate::models::{ModelId, Tokens, ToneId};
+use crate::models::{Format, Gear, ModelId, Tokens, ToneId};
 
 /// The `prompt` parameter selecting which OAuth flow to start.
 #[derive(Debug, Clone)]
@@ -21,6 +21,27 @@ pub enum Prompt {
     Standard,
 }
 
+/// Optional parameters that scope the TONE3000 browse view to what your product supports.
+///
+/// All fields are optional; `Default::default()` sends none of them. Read from the official
+/// client (`tone-3000/api`, `src/tone3000-client.ts`) — note the API expects `format` here,
+/// not `platform`; the upstream README's prose is stale.
+#[derive(Debug, Clone, Default)]
+pub struct AuthorizeOptions {
+    /// Restrict the catalog to these gear categories. Sent underscore-joined.
+    pub gears: Vec<Gear>,
+    /// Restrict the catalog to a single model format.
+    pub format: Option<Format>,
+    /// Restrict to a neural architecture version.
+    pub architecture: Option<u32>,
+    /// UI hint: render TONE3000 in menubar mode.
+    pub menubar: bool,
+    /// Pre-fill the sign-in identifier.
+    pub login_hint: Option<String>,
+    /// Opt into in-flow preview players (audition tones without leaving TONE3000).
+    pub preview: bool,
+}
+
 /// Build the `/oauth/authorize` URL the app should open in a browser.
 ///
 /// `state` is an opaque, unguessable value the app generates and **must** persist: the
@@ -33,6 +54,7 @@ pub fn authorize_url(
     challenge: &str,
     state: &str,
     prompt: Prompt,
+    options: AuthorizeOptions,
 ) -> Url {
     let mut url = Url::parse(DEFAULT_BASE_URL).expect("valid base url");
     url.set_path("/api/v1/oauth/authorize");
@@ -58,6 +80,30 @@ pub fn authorize_url(
             }
             // Standard flow sends no `prompt` parameter.
             Prompt::Standard => {}
+        }
+        if !options.gears.is_empty() {
+            let joined = options
+                .gears
+                .iter()
+                .map(|g| g.as_str())
+                .collect::<Vec<_>>()
+                .join("_");
+            q.append_pair("gears", &joined);
+        }
+        if let Some(format) = &options.format {
+            q.append_pair("format", format.as_str());
+        }
+        if let Some(arch) = options.architecture {
+            q.append_pair("architecture", &arch.to_string());
+        }
+        if options.menubar {
+            q.append_pair("menubar", "true");
+        }
+        if let Some(hint) = &options.login_hint {
+            q.append_pair("login_hint", hint);
+        }
+        if options.preview {
+            q.append_pair("preview", "true");
         }
     }
     url
@@ -117,6 +163,7 @@ mod tests {
             "CHAL",
             "xyz-state",
             Prompt::LoadTone { tone_id: ToneId(1) },
+            AuthorizeOptions::default(),
         );
         let s = u.as_str();
         assert!(s.contains("code_challenge=CHAL"));
@@ -136,6 +183,7 @@ mod tests {
             Prompt::LoadModel {
                 model_id: ModelId(42),
             },
+            AuthorizeOptions::default(),
         );
         let s = u.as_str();
         assert!(s.contains("prompt=load_model"));
@@ -150,6 +198,7 @@ mod tests {
             "C",
             "S",
             Prompt::Standard,
+            AuthorizeOptions::default(),
         );
         assert!(!u.as_str().contains("prompt="));
     }

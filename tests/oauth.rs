@@ -171,3 +171,63 @@ async fn refresh_without_token_errors_unauthenticated() {
     let err = client.refresh().await.unwrap_err();
     assert!(matches!(err, tone3000::Error::Unauthenticated));
 }
+
+#[test]
+fn authorize_url_omits_unset_options() {
+    use tone3000::{AuthorizeOptions, Prompt, authorize_url};
+
+    let url = authorize_url(
+        "t3k_pub_x",
+        "http://localhost:3001",
+        "chal",
+        "state123",
+        Prompt::Standard,
+        AuthorizeOptions::default(),
+    );
+    let q: std::collections::HashMap<_, _> = url.query_pairs().into_owned().collect();
+
+    assert_eq!(q.get("state").unwrap(), "state123");
+    for absent in [
+        "gears",
+        "format",
+        "architecture",
+        "menubar",
+        "login_hint",
+        "preview",
+    ] {
+        assert!(
+            !q.contains_key(absent),
+            "{absent} must be omitted when unset"
+        );
+    }
+}
+
+#[test]
+fn authorize_url_serializes_scoping_options() {
+    use tone3000::{AuthorizeOptions, Format, Gear, Prompt, authorize_url};
+
+    let url = authorize_url(
+        "t3k_pub_x",
+        "http://localhost:3001",
+        "chal",
+        "state123",
+        Prompt::SelectTone,
+        AuthorizeOptions {
+            gears: vec![Gear::Amp, Gear::Pedal],
+            format: Some(Format::Nam),
+            architecture: Some(2),
+            menubar: true,
+            login_hint: Some("a@b.com".into()),
+            preview: true,
+        },
+    );
+    let q: std::collections::HashMap<_, _> = url.query_pairs().into_owned().collect();
+
+    assert_eq!(q.get("prompt").unwrap(), "select_tone");
+    assert_eq!(q.get("gears").unwrap(), "amp_pedal");
+    assert_eq!(q.get("format").unwrap(), "nam");
+    assert_eq!(q.get("architecture").unwrap(), "2");
+    assert_eq!(q.get("menubar").unwrap(), "true");
+    assert_eq!(q.get("login_hint").unwrap(), "a@b.com");
+    assert_eq!(q.get("preview").unwrap(), "true");
+}

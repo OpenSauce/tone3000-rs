@@ -40,6 +40,7 @@ let pkce = tone3000::pkce::generate();
 let state = /* an unguessable value you store and verify on the callback */;
 let url = tone3000::oauth::authorize_url(
     "t3k_pub_…", "http://localhost:8765/callback", &pkce.challenge, state, tone3000::Prompt::Standard,
+    tone3000::AuthorizeOptions::default(),
 );
 // open `url`, capture the redirected `code`, then:
 let tokens = client.exchange_code(&code, &pkce.verifier, "http://localhost:8765/callback").await?;

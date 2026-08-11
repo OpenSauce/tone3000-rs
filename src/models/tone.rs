@@ -89,7 +89,15 @@ pub struct Tone {
 pub struct SearchParams {
     pub query: Option<String>,
     pub gears: Vec<Gear>,
+    /// Model format. Filtering for IRs goes here, not through `gears`.
+    pub format: Option<Format>,
     pub sizes: Vec<Size>,
+    /// Tag names, matched exactly against a tone's tags. Multiple values are OR'd.
+    pub tags: Vec<String>,
+    /// Make/model names, matched exactly against a tone's makes. OR'd.
+    pub makes: Vec<String>,
+    /// Creator usernames, matched exactly against a tone's `user.username`. OR'd.
+    pub creators: Vec<String>,
     pub sort: Option<ToneSort>,
     pub page: Option<u32>,
     pub page_size: Option<u32>,

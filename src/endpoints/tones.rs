@@ -28,6 +28,20 @@ impl Client {
                 .join("_");
             req = req.query(&[("sizes", joined)]);
         }
+        if let Some(format) = &params.format {
+            req = req.query(&[("format", format.as_str())]);
+        }
+        // NOTE: tags/makes join with `_`, but creators joins with `,`. The asymmetry is in
+        // the API — see tone-3000/api src/tone3000-client.ts, buildSearchTonesQuery.
+        if !params.tags.is_empty() {
+            req = req.query(&[("tags", params.tags.join("_"))]);
+        }
+        if !params.makes.is_empty() {
+            req = req.query(&[("makes", params.makes.join("_"))]);
+        }
+        if !params.creators.is_empty() {
+            req = req.query(&[("creators", params.creators.join(","))]);
+        }
         if let Some(sort) = params.sort {
             req = req.query(&[("sort", sort.as_str())]);
         }

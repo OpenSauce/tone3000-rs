@@ -32,5 +32,5 @@ pub use models::{
     ModelId, ModelListParams, Page, PublicUser, SearchParams, Size, Tag, TagId, Tokens, Tone,
     ToneId, ToneSort, User, UserId, UserListParams, UserSort,
 };
-pub use oauth::{Prompt, authorize_url};
+pub use oauth::{AuthorizeOptions, Prompt, authorize_url};
 pub use pkce::{Pkce, generate as generate_pkce};
