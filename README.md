@@ -83,12 +83,14 @@ let runtime = nam_rs::Model::from_nam(&nam)?;
 
 ### Keeping up with API changes
 
-| Command | What it does | Needs credentials |
+| Command | What it does | Needs TONE3000 credentials |
 |---|---|---|
 | `make check-upstream` | Compares upstream `types.ts` against the pinned SHA | No |
 | `make test-live` | Live contract + enum vocabulary checks | Yes |
 
 `make check-upstream` also runs weekly in CI. Live checks are local-only by design.
+`make check-upstream` needs no TONE3000 credentials, but does require an authenticated
+[`gh`](https://cli.github.com/) (it reads a public GitHub repo via the API).
 
 ## License
 

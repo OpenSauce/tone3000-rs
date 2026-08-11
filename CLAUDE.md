@@ -30,7 +30,10 @@ UI, file placement, token storage) stay in the consuming app.
   documentation and has been wrong before; treat a change as a trigger to investigate, not a
   source to sync from. A full response-shape snapshot guard is designed in
   `docs/superpowers/specs/2026-08-11-api-drift-guard-design.md` but deliberately not built —
-  revisit if drift ever slips past this watch.
+  revisit if drift ever slips past this watch. GitHub auto-disables scheduled workflows
+  after 60 days without repository activity, so on a quiet repo this watch can stop firing
+  with no signal — check that it's still enabled under Actions if a change ever goes
+  unnoticed.
 
 ## Architecture (Approach A)
 

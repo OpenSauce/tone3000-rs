@@ -13,6 +13,8 @@ jobs:
     # Never on pull requests; never on forks.
     if: github.repository == 'OpenSauce/tone3000-rs'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - run: scripts/check-upstream.sh

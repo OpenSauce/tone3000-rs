@@ -128,16 +128,19 @@ async fn users_list_contract() {
 #[tokio::test]
 #[ignore = "live: hits the real TONE3000 API; run via `make test-live`"]
 async fn enum_vocabulary_is_current() {
-    use tone3000::{ArchitectureVersion, Format, Gear, License, Size};
+    use tone3000::{ArchitectureVersion, Format, Gear, License, Size, ToneSort};
 
     let (client, _access) = common::authed().await;
     let mut unknown: Vec<String> = Vec::new();
 
     // A broad sweep rather than a targeted query — the point is to see as much of the
-    // live vocabulary as one page allows.
+    // live vocabulary as one page allows. Sorted newest-first: an unsorted search skews
+    // toward popular tones, and rare vocabulary (e.g. `space`, `experimental`) may never
+    // land on page 1 of a popularity-ranked result. New tones surface new vocabulary first.
     let tones = client
         .search(SearchParams {
             page_size: Some(100),
+            sort: Some(ToneSort::Newest),
             ..Default::default()
         })
         .await
@@ -161,15 +164,50 @@ async fn enum_vocabulary_is_current() {
         }
     }
 
-    // Models carry their own size and architecture vocabulary.
+    // Every `if let Some(X::Other(v))` above stays silently green if the API renames or
+    // drops a field (exactly what happened to `platform` -> `format`): the field
+    // deserializes to `None`, `unknown` stays empty, and the test passes having compared
+    // nothing. Assert each field was actually populated by at least one sampled tone, so a
+    // rename/drop trips loudly instead of vanishing into a green run.
+    assert!(
+        tones.data.iter().any(|t| t.format.is_some()),
+        "no tone in the sample carried `format` — field renamed or dropped upstream?"
+    );
+    assert!(
+        tones.data.iter().any(|t| t.gear.is_some()),
+        "no tone in the sample carried `gear` — field renamed or dropped upstream?"
+    );
+    assert!(
+        tones.data.iter().any(|t| t.license.is_some()),
+        "no tone in the sample carried `license` — field renamed or dropped upstream?"
+    );
+    assert!(
+        tones.data.iter().any(|t| !t.sizes.is_empty()),
+        "no tone in the sample carried `sizes` — field renamed or dropped upstream?"
+    );
+
+    // Models carry their own size and architecture vocabulary. Use the first tone with a
+    // model in the sample rather than hard-failing on `tones.data[0]`: a tone with zero
+    // models is not itself a sign of drift, just a confusing place to fail.
+    let sample_tone = tones
+        .data
+        .iter()
+        .find(|t| t.models_count > 0)
+        .unwrap_or_else(|| {
+            panic!(
+                "no tone in the sample of {} has any models",
+                tones.data.len()
+            )
+        });
+
     let models = client
-        .models(tones.data[0].id, Default::default())
+        .models(sample_tone.id, Default::default())
         .await
         .expect("models list succeeds");
     assert!(
         !models.data.is_empty(),
-        "tone {} has no models?",
-        tones.data[0].id
+        "tone {} reported models_count > 0 but the models list is empty",
+        sample_tone.id
     );
     for m in &models.data {
         if let Some(Size::Other(v)) = &m.size {
@@ -179,6 +217,14 @@ async fn enum_vocabulary_is_current() {
             unknown.push(format!("model {}: unknown ArchitectureVersion {v:?}", m.id));
         }
     }
+    assert!(
+        models.data.iter().any(|m| m.size.is_some()),
+        "no model in the sample carried `size` — field renamed or dropped upstream?"
+    );
+    assert!(
+        models.data.iter().any(|m| m.architecture_version.is_some()),
+        "no model in the sample carried `architecture_version` — field renamed or dropped upstream?"
+    );
 
     assert!(
         unknown.is_empty(),

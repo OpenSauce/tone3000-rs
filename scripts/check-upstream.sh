@@ -5,6 +5,12 @@
 # vocabularies, OAuth options — and its history tracks real API cutovers closely. This
 # makes no TONE3000 API calls and needs no TONE3000 credentials.
 set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+if ! command -v gh >/dev/null 2>&1; then
+  echo "error: this script requires the GitHub CLI ('gh'), authenticated (gh auth login)." >&2
+  exit 1
+fi
 
 PINNED_FILE="scripts/upstream-types.sha"
 REPO="tone-3000/api"
