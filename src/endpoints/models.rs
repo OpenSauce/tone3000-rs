@@ -15,6 +15,35 @@ impl Client {
     ///
     /// A tone's detail response does not embed its models, so a detail screen is this
     /// call plus [`Client::tone`].
+    ///
+    /// # This returns one architecture at a time
+    ///
+    /// The API defaults to architecture 1 and there is no "all architectures" value, so
+    /// this returns *fewer* models than [`Tone::models_count`] whenever a tone has been
+    /// captured on more than one. Tone 6298, for example, reports 223 models
+    /// (112 on v1, 111 on v2) and a bare call returns 112.
+    ///
+    /// To show everything, request each architecture the tone reports:
+    ///
+    /// ```no_run
+    /// # async fn run(client: tone3000::Client, tone: tone3000::Tone) -> tone3000::Result<()> {
+    /// use tone3000::ArchitectureVersion::{Custom, V1, V2};
+    ///
+    /// let mut models = Vec::new();
+    /// for (count, arch) in [
+    ///     (tone.a1_models_count, V1),
+    ///     (tone.a2_models_count, V2),
+    ///     (tone.custom_models_count, Custom),
+    /// ] {
+    ///     if count > 0 {
+    ///         models.extend(client.models(tone.id).architecture(arch).await?.data);
+    ///     }
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// [`Tone::models_count`]: crate::Tone::models_count
     pub fn models(&self, tone_id: ToneId) -> ModelList {
         ModelList::new(self, tone_id)
     }

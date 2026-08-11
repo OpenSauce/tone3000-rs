@@ -2,48 +2,75 @@ use serde::{Deserialize, Serialize};
 
 use super::ids::UserId;
 
-/// The authenticated user's profile (`GET /user`).
+/// The account behind the current access token, as returned by
+/// [`Client::user`](crate::Client::user).
+///
+/// The caller's own profile. For anyone else, see [`PublicUser`].
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[non_exhaustive]
 pub struct User {
+    /// The account id. Matches [`Tone::user_id`](crate::Tone::user_id) on tones you created.
     pub id: UserId,
+    /// Display name, as shown on TONE3000.
     #[serde(default)]
     pub username: String,
+    /// Profile picture, if set.
     #[serde(default)]
     pub avatar_url: Option<String>,
+    /// The self-written profile blurb.
     #[serde(default)]
     pub bio: Option<String>,
+    /// Links the user added to their profile.
     #[serde(default, deserialize_with = "crate::models::de_null_as_default")]
     pub links: Vec<String>,
+    /// When the account was created, as the API's raw timestamp string.
     #[serde(default)]
     pub created_at: Option<String>,
+    /// When the profile was last edited, as the API's raw timestamp string.
     #[serde(default)]
     pub updated_at: Option<String>,
+    /// The profile page on tone3000.com.
     #[serde(default)]
     pub url: String,
 }
 
-/// A public user as returned by the user list (`GET /users`).
+/// Another account as it appears in the public directory, from
+/// [`Client::users`](crate::Client::users).
+///
+/// Carries contribution metrics that [`User`] does not, and omits private detail.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[non_exhaustive]
 pub struct PublicUser {
+    /// The account id.
     pub id: UserId,
+    /// Display name. This is the value [`ToneSearch::creator`] matches against, exactly.
+    ///
+    /// [`ToneSearch::creator`]: crate::ToneSearch::creator
     #[serde(default)]
     pub username: String,
+    /// The self-written profile blurb.
     #[serde(default)]
     pub bio: Option<String>,
+    /// Links the user added to their profile.
     #[serde(default, deserialize_with = "crate::models::de_null_as_default")]
     pub links: Vec<String>,
+    /// Profile picture, if set.
     #[serde(default)]
     pub avatar_url: Option<String>,
+    /// Total downloads across everything they have published.
     #[serde(default)]
     pub downloads_count: u64,
+    /// Total favourites their tones have received.
     #[serde(default)]
     pub favorites_count: u64,
+    /// Individual model files they have published.
     #[serde(default)]
     pub models_count: u64,
+    /// Capture projects they have published. Usually far fewer than
+    /// [`models_count`](Self::models_count), since one tone holds many models.
     #[serde(default)]
     pub tones_count: u64,
+    /// The profile page on tone3000.com.
     #[serde(default)]
     pub url: String,
 }

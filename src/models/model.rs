@@ -3,23 +3,47 @@ use serde::{Deserialize, Serialize};
 use super::enums::{ArchitectureVersion, Size};
 use super::ids::{ModelId, ToneId, UserId};
 
-/// A downloadable model belonging to a tone. `model_url` is the `.nam`/IR file location.
+/// One downloadable capture belonging to a [`Tone`] — a single file at one size and
+/// architecture.
+///
+/// A tone with six models is six variants of the same capture, not six different amps.
+/// This struct is metadata: the file itself lives at [`model_url`](Self::model_url), and
+/// [`Client::download_model`] fetches it.
+///
+/// [`Tone`]: crate::Tone
+/// [`Client::download_model`]: crate::Client::download_model
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[non_exhaustive]
 pub struct Model {
+    /// Stable identifier, used by [`Client::model`](crate::Client::model).
     pub id: ModelId,
+    /// The tone this model belongs to.
     pub tone_id: ToneId,
+    /// The creator's account id.
     pub user_id: UserId,
+    /// When the model was uploaded, as the API's raw timestamp string.
     #[serde(default)]
     pub created_at: Option<String>,
+    /// When the model was last changed, as the API's raw timestamp string.
     #[serde(default)]
     pub updated_at: Option<String>,
+    /// The creator's name for this variant, e.g. "Plexi 51 DI#03".
+    ///
+    /// Distinguishes models within one tone — typically the mic, speaker or gain setting
+    /// captured.
     #[serde(default)]
     pub name: String,
+    /// Where the file lives. Fetching it needs the same Bearer token as any other call,
+    /// which [`Client::download_model`](crate::Client::download_model) handles.
     #[serde(default)]
     pub model_url: String,
+    /// The CPU/quality trade-off this variant was trained at.
     #[serde(default)]
     pub size: Option<Size>,
+    /// Which generation of the NAM architecture trained this model.
+    ///
+    /// Worth surfacing in a UI: a player built against one architecture may not load
+    /// another.
     #[serde(default)]
     pub architecture_version: Option<ArchitectureVersion>,
 }
