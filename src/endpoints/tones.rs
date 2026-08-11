@@ -4,7 +4,7 @@ use std::pin::Pin;
 use crate::client::Client;
 use crate::error::Result;
 use crate::http::json;
-use crate::models::{Format, Gear, Page, Size, Tone, ToneId, ToneSort};
+use crate::models::{ArchitectureVersion, Format, Gear, Page, Size, Tone, ToneId, ToneSort};
 
 impl Client {
     /// Browse and search the public tone library.
@@ -63,7 +63,7 @@ pub struct ToneSearch<'a> {
     sort: Option<ToneSort>,
     page: Option<u32>,
     page_size: Option<u32>,
-    architecture: Option<u32>,
+    architecture: Option<ArchitectureVersion>,
 }
 
 impl<'a> ToneSearch<'a> {
@@ -188,7 +188,7 @@ impl<'a> ToneSearch<'a> {
     }
 
     /// Restrict to tones with models of a given neural architecture version.
-    pub fn architecture(mut self, architecture: u32) -> Self {
+    pub fn architecture(mut self, architecture: ArchitectureVersion) -> Self {
         self.architecture = Some(architecture);
         self
     }
@@ -230,8 +230,8 @@ impl<'a> ToneSearch<'a> {
         if let Some(page_size) = self.page_size {
             req = req.query(&[("page_size", page_size)]);
         }
-        if let Some(arch) = self.architecture {
-            req = req.query(&[("architecture", arch)]);
+        if let Some(arch) = &self.architecture {
+            req = req.query(&[("architecture", arch.as_str())]);
         }
         let resp = self.client.send(req).await?;
         json(resp).await

@@ -1,4 +1,4 @@
-use tone3000::{Client, Model, ModelId, ToneId};
+use tone3000::{ArchitectureVersion, Client, Model, ModelId, ToneId};
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -267,4 +267,32 @@ async fn list_builders_serialize_pagination() {
     assert_eq!(reqs[4].url.path(), "/users");
     assert_eq!(q(4).get("query").unwrap(), "akka");
     assert_eq!(q(4).get("page_size").unwrap(), "10");
+}
+
+#[tokio::test]
+async fn architecture_serializes_as_the_api_vocabulary() {
+    // The API rejects anything outside '1' | '2' | 'custom' with a 400, despite upstream
+    // types.ts declaring `architecture?: number`. Verified live 2026-08-11.
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(r#"{"data":[]}"#))
+        .mount(&server)
+        .await;
+
+    let c = client(&server);
+    c.tones()
+        .architecture(ArchitectureVersion::Custom)
+        .await
+        .unwrap();
+    c.models(ToneId(51949))
+        .architecture(ArchitectureVersion::V2)
+        .await
+        .unwrap();
+
+    let reqs = server.received_requests().await.unwrap();
+    let q = |i: usize| -> std::collections::HashMap<String, String> {
+        reqs[i].url.query_pairs().into_owned().collect()
+    };
+    assert_eq!(q(0).get("architecture").unwrap(), "custom");
+    assert_eq!(q(1).get("architecture").unwrap(), "2");
 }

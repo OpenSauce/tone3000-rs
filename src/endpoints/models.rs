@@ -8,7 +8,7 @@ use tokio::io::{AsyncWrite, AsyncWriteExt};
 use crate::client::Client;
 use crate::error::Result;
 use crate::http::json;
-use crate::models::{Model, ModelId, Page, ToneId};
+use crate::models::{ArchitectureVersion, Model, ModelId, Page, ToneId};
 
 impl Client {
     /// List the models belonging to a tone.
@@ -72,7 +72,7 @@ pub struct ModelList<'a> {
     tone_id: ToneId,
     page: Option<u32>,
     page_size: Option<u32>,
-    architecture: Option<u32>,
+    architecture: Option<ArchitectureVersion>,
 }
 
 impl<'a> ModelList<'a> {
@@ -99,7 +99,7 @@ impl<'a> ModelList<'a> {
     }
 
     /// Restrict to models of a given neural architecture version.
-    pub fn architecture(mut self, architecture: u32) -> Self {
+    pub fn architecture(mut self, architecture: ArchitectureVersion) -> Self {
         self.architecture = Some(architecture);
         self
     }
@@ -116,8 +116,8 @@ impl<'a> ModelList<'a> {
         if let Some(page_size) = self.page_size {
             req = req.query(&[("page_size", page_size)]);
         }
-        if let Some(arch) = self.architecture {
-            req = req.query(&[("architecture", arch)]);
+        if let Some(arch) = &self.architecture {
+            req = req.query(&[("architecture", arch.as_str())]);
         }
         let resp = self.client.send(req).await?;
         json(resp).await
