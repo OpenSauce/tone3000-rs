@@ -120,3 +120,66 @@ async fn users_list_contract() {
         );
     }
 }
+
+/// Fail when the live API returns an enum value this SDK does not model.
+///
+/// Open enums fall back to `Other(String)` so an unknown value never sinks a response —
+/// correct at runtime, and precisely why drift here is otherwise invisible.
+#[tokio::test]
+#[ignore = "live: hits the real TONE3000 API; run via `make test-live`"]
+async fn enum_vocabulary_is_current() {
+    use tone3000::{ArchitectureVersion, Format, Gear, License, Size};
+
+    let (client, _access) = common::authed().await;
+    let mut unknown: Vec<String> = Vec::new();
+
+    // A broad sweep rather than a targeted query — the point is to see as much of the
+    // live vocabulary as one page allows.
+    let tones = client
+        .search(SearchParams {
+            page_size: Some(100),
+            ..Default::default()
+        })
+        .await
+        .expect("search succeeds");
+    assert!(!tones.data.is_empty(), "search returned no tones");
+
+    for t in &tones.data {
+        if let Some(Gear::Other(v)) = &t.gear {
+            unknown.push(format!("tone {}: unknown Gear {v:?}", t.id));
+        }
+        if let Some(Format::Other(v)) = &t.format {
+            unknown.push(format!("tone {}: unknown Format {v:?}", t.id));
+        }
+        if let Some(License::Other(v)) = &t.license {
+            unknown.push(format!("tone {}: unknown License {v:?}", t.id));
+        }
+        for s in &t.sizes {
+            if let Size::Other(v) = s {
+                unknown.push(format!("tone {}: unknown Size {v:?}", t.id));
+            }
+        }
+    }
+
+    // Models carry their own size and architecture vocabulary.
+    let models = client
+        .models(tones.data[0].id, Default::default())
+        .await
+        .expect("models list succeeds");
+    for m in &models.data {
+        if let Some(Size::Other(v)) = &m.size {
+            unknown.push(format!("model {}: unknown Size {v:?}", m.id));
+        }
+        if let Some(ArchitectureVersion::Other(v)) = &m.architecture_version {
+            unknown.push(format!("model {}: unknown ArchitectureVersion {v:?}", m.id));
+        }
+    }
+
+    assert!(
+        unknown.is_empty(),
+        "\n\nThe API returned {} enum value(s) this SDK does not model:\n\n{}\n\n\
+         Add the missing variant(s) to src/models/enums.rs.\n",
+        unknown.len(),
+        unknown.join("\n")
+    );
+}
