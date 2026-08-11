@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use reqwest::{Response, StatusCode};
 
-use crate::error::{Error, Result};
+use crate::error::{Error, Result, TransportResultExt};
 
 /// Convert a completed response into either its body (on 2xx) or a mapped [`Error`].
 pub(crate) async fn check_status(resp: Response) -> Result<Response> {
@@ -34,7 +34,7 @@ pub(crate) async fn check_status(resp: Response) -> Result<Response> {
 
 /// Deserialize a checked 2xx response body as JSON into `T`.
 pub(crate) async fn json<T: serde::de::DeserializeOwned>(resp: Response) -> Result<T> {
-    let bytes = resp.bytes().await?;
+    let bytes = resp.bytes().await.transport()?;
     Ok(serde_json::from_slice(&bytes)?)
 }
 

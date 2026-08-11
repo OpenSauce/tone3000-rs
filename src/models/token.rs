@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Tokens returned by `POST /oauth/token` (exchange or refresh).
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[non_exhaustive]
 pub struct Tokens {
     pub access_token: String,
     #[serde(default)]

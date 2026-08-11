@@ -4,6 +4,7 @@ use super::ids::UserId;
 
 /// The authenticated user's profile (`GET /user`).
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[non_exhaustive]
 pub struct User {
     pub id: UserId,
     #[serde(default)]
@@ -24,6 +25,7 @@ pub struct User {
 
 /// A public user as returned by the user list (`GET /users`).
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[non_exhaustive]
 pub struct PublicUser {
     pub id: UserId,
     #[serde(default)]

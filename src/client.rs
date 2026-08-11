@@ -3,7 +3,7 @@ use std::sync::Arc;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use tokio::sync::Mutex;
 
-use crate::error::{Error, Result};
+use crate::error::{Error, Result, TransportResultExt};
 use crate::http::check_status;
 use crate::models::Tokens;
 use crate::oauth::parse_token_response;
@@ -152,7 +152,7 @@ impl Client {
         // Snapshot the token and header together so the guard below compares against the
         // exact credential we send, not a separately re-read value.
         let (headers, used) = self.authorized_headers().await?;
-        let resp = req.headers(headers).send().await?;
+        let resp = req.headers(headers).send().await.transport()?;
 
         match check_status(resp).await {
             Err(Error::Unauthorized) if self.auto_refresh && self.has_refresh_token().await => {
@@ -160,7 +160,7 @@ impl Client {
                 match retry {
                     Some(rb) => {
                         let (headers, _) = self.authorized_headers().await?;
-                        let resp = rb.headers(headers).send().await?;
+                        let resp = rb.headers(headers).send().await.transport()?;
                         check_status(resp).await
                     }
                     None => Err(Error::Unauthorized),
@@ -232,9 +232,10 @@ impl Client {
             .post(format!("{}/oauth/token", self.base_url))
             .form(form)
             .send()
-            .await?;
+            .await
+            .transport()?;
         let status = resp.status().as_u16();
-        let body = resp.bytes().await?;
+        let body = resp.bytes().await.transport()?;
         let tokens = parse_token_response(status, &body)?;
         self.store_tokens(&tokens).await;
         Ok(tokens)

@@ -5,6 +5,7 @@ use super::ids::{ModelId, ToneId, UserId};
 
 /// A downloadable model belonging to a tone. `model_url` is the `.nam`/IR file location.
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[non_exhaustive]
 pub struct Model {
     pub id: ModelId,
     pub tone_id: ToneId,

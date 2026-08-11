@@ -23,7 +23,7 @@ impl Client {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn tones(&self) -> ToneSearch<'_> {
+    pub fn tones(&self) -> ToneSearch {
         ToneSearch::new(self)
     }
 
@@ -38,12 +38,12 @@ impl Client {
     }
 
     /// The authenticated user's created tones.
-    pub fn created(&self) -> ToneList<'_> {
+    pub fn created(&self) -> ToneList {
         ToneList::new(self, "created")
     }
 
     /// The authenticated user's favorited tones.
-    pub fn favorited(&self) -> ToneList<'_> {
+    pub fn favorited(&self) -> ToneList {
         ToneList::new(self, "favorited")
     }
 }
@@ -51,8 +51,10 @@ impl Client {
 /// A pending browse/search of the tone library, built by [`Client::tones`].
 ///
 /// Await it directly to send the request; every method is optional.
-pub struct ToneSearch<'a> {
-    client: &'a Client,
+#[must_use = "a request builder does nothing until awaited"]
+#[derive(Clone)]
+pub struct ToneSearch {
+    client: Client,
     query: Option<String>,
     gears: Vec<Gear>,
     format: Option<Format>,
@@ -66,10 +68,10 @@ pub struct ToneSearch<'a> {
     architecture: Option<ArchitectureVersion>,
 }
 
-impl<'a> ToneSearch<'a> {
-    fn new(client: &'a Client) -> Self {
+impl ToneSearch {
+    fn new(client: &Client) -> Self {
         Self {
-            client,
+            client: client.clone(),
             query: None,
             gears: Vec::new(),
             format: None,
@@ -238,9 +240,9 @@ impl<'a> ToneSearch<'a> {
     }
 }
 
-impl<'a> IntoFuture for ToneSearch<'a> {
+impl IntoFuture for ToneSearch {
     type Output = Result<Page<Tone>>;
-    type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
+    type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send>>;
 
     fn into_future(self) -> Self::IntoFuture {
         Box::pin(self.send())
@@ -251,17 +253,19 @@ impl<'a> IntoFuture for ToneSearch<'a> {
 /// [`Client::favorited`].
 ///
 /// Await it directly to send the request; every method is optional.
-pub struct ToneList<'a> {
-    client: &'a Client,
+#[must_use = "a request builder does nothing until awaited"]
+#[derive(Clone)]
+pub struct ToneList {
+    client: Client,
     kind: &'static str,
     page: Option<u32>,
     page_size: Option<u32>,
 }
 
-impl<'a> ToneList<'a> {
-    fn new(client: &'a Client, kind: &'static str) -> Self {
+impl ToneList {
+    fn new(client: &Client, kind: &'static str) -> Self {
         Self {
-            client,
+            client: client.clone(),
             kind,
             page: None,
             page_size: None,
@@ -296,9 +300,9 @@ impl<'a> ToneList<'a> {
     }
 }
 
-impl<'a> IntoFuture for ToneList<'a> {
+impl IntoFuture for ToneList {
     type Output = Result<Page<Tone>>;
-    type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
+    type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send>>;
 
     fn into_future(self) -> Self::IntoFuture {
         Box::pin(self.send())
@@ -308,4 +312,32 @@ impl<'a> IntoFuture for ToneList<'a> {
 /// Join wire values with a separator.
 fn join<'s>(values: impl Iterator<Item = &'s str>, sep: &str) -> String {
     values.collect::<Vec<_>>().join(sep)
+}
+
+impl std::fmt::Debug for ToneSearch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ToneSearch")
+            .field("query", &self.query)
+            .field("gears", &self.gears)
+            .field("format", &self.format)
+            .field("sizes", &self.sizes)
+            .field("tags", &self.tags)
+            .field("makes", &self.makes)
+            .field("creators", &self.creators)
+            .field("sort", &self.sort)
+            .field("page", &self.page)
+            .field("page_size", &self.page_size)
+            .field("architecture", &self.architecture)
+            .finish_non_exhaustive()
+    }
+}
+
+impl std::fmt::Debug for ToneList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ToneList")
+            .field("kind", &self.kind)
+            .field("page", &self.page)
+            .field("page_size", &self.page_size)
+            .finish_non_exhaustive()
+    }
 }

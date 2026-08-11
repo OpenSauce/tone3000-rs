@@ -10,18 +10,17 @@ fn client(server: &MockServer) -> Client {
         .build()
 }
 
+/// `Model` is `#[non_exhaustive]`, so build it the way a consumer would ever get one:
+/// by deserializing an API payload.
 fn model_fixture(server: &MockServer, file_path: &str) -> Model {
-    Model {
-        id: ModelId(1),
-        tone_id: ToneId(2),
-        user_id: "u".into(),
-        created_at: None,
-        updated_at: None,
-        name: String::new(),
-        model_url: format!("{}{}", server.uri(), file_path),
-        size: None,
-        architecture_version: None,
-    }
+    serde_json::from_value(serde_json::json!({
+        "id": 1,
+        "tone_id": 2,
+        "user_id": "u",
+        "name": "",
+        "model_url": format!("{}{}", server.uri(), file_path),
+    }))
+    .expect("model fixture deserializes")
 }
 
 #[tokio::test]
@@ -295,4 +294,146 @@ async fn architecture_serializes_as_the_api_vocabulary() {
     };
     assert_eq!(q(0).get("architecture").unwrap(), "custom");
     assert_eq!(q(1).get("architecture").unwrap(), "2");
+}
+
+#[tokio::test]
+async fn sort_serializes_for_tones_and_users() {
+    use tone3000::{ToneSort, UserSort};
+
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(r#"{"data":[]}"#))
+        .mount(&server)
+        .await;
+
+    let c = client(&server);
+    c.tones().sort(ToneSort::DownloadsAllTime).await.unwrap();
+    c.users().sort(UserSort::Favorites).await.unwrap();
+
+    let reqs = server.received_requests().await.unwrap();
+    let q = |i: usize| -> std::collections::HashMap<String, String> {
+        reqs[i].url.query_pairs().into_owned().collect()
+    };
+    assert_eq!(q(0).get("sort").unwrap(), "downloads-all-time");
+    assert_eq!(q(1).get("sort").unwrap(), "favorites");
+}
+
+#[tokio::test]
+async fn repeated_filters_append_and_scalars_replace() {
+    use tone3000::{Gear, ToneSort};
+
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(r#"{"data":[]}"#))
+        .mount(&server)
+        .await;
+
+    client(&server)
+        .tones()
+        // Repeatable filters accumulate...
+        .gear(Gear::Amp)
+        .gear(Gear::Pedal)
+        .tags(["clean"])
+        .tags(["crunch"])
+        // ...while scalars take the last value written.
+        .sort(ToneSort::Newest)
+        .sort(ToneSort::Trending)
+        .query("first")
+        .query("second")
+        .await
+        .unwrap();
+
+    let reqs = server.received_requests().await.unwrap();
+    let q: std::collections::HashMap<String, String> =
+        reqs[0].url.query_pairs().into_owned().collect();
+    assert_eq!(q.get("gears").unwrap(), "amp_pedal");
+    assert_eq!(q.get("tags").unwrap(), "clean_crunch");
+    assert_eq!(q.get("sort").unwrap(), "trending");
+    assert_eq!(q.get("query").unwrap(), "second");
+}
+
+#[tokio::test]
+async fn bare_request_sends_no_query_parameters() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(r#"{"data":[]}"#))
+        .mount(&server)
+        .await;
+
+    client(&server).tones().await.unwrap();
+
+    let reqs = server.received_requests().await.unwrap();
+    assert_eq!(reqs[0].url.query(), None, "browse must not invent filters");
+}
+
+#[tokio::test]
+async fn unknown_architecture_round_trips_through_other() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(r#"{"data":[]}"#))
+        .mount(&server)
+        .await;
+
+    client(&server)
+        .tones()
+        .architecture(ArchitectureVersion::Other("3".into()))
+        .await
+        .unwrap();
+
+    let reqs = server.received_requests().await.unwrap();
+    let q: std::collections::HashMap<String, String> =
+        reqs[0].url.query_pairs().into_owned().collect();
+    assert_eq!(q.get("architecture").unwrap(), "3");
+}
+
+#[tokio::test]
+async fn connect_failure_surfaces_as_transport_error() {
+    // Port 1 refuses connections; nothing is listening.
+    let client = Client::builder("t3k_pub_x")
+        .access_token("AT")
+        .base_url("http://127.0.0.1:1")
+        .build();
+
+    let err = client.tones().await.unwrap_err();
+    assert!(err.is_connect(), "expected a connect failure, got {err:?}");
+    assert!(!err.is_timeout());
+    assert!(matches!(err, tone3000::Error::Http(_)));
+}
+
+#[tokio::test]
+async fn builders_are_cloneable_for_paging() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(r#"{"data":[]}"#))
+        .mount(&server)
+        .await;
+
+    // A configured search is reusable across pages — the point of deriving Clone.
+    let base = client(&server).tones().query("plexi");
+    base.clone().page(1).await.unwrap();
+    base.page(2).await.unwrap();
+
+    let reqs = server.received_requests().await.unwrap();
+    let q = |i: usize| -> std::collections::HashMap<String, String> {
+        reqs[i].url.query_pairs().into_owned().collect()
+    };
+    assert_eq!(q(0).get("page").unwrap(), "1");
+    assert_eq!(q(1).get("page").unwrap(), "2");
+    assert_eq!(q(1).get("query").unwrap(), "plexi");
+}
+
+#[tokio::test]
+async fn requests_are_spawnable() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(r#"{"data":[]}"#))
+        .mount(&server)
+        .await;
+
+    // Builders own their client clone, so the future is 'static and can be spawned —
+    // what a browse UI needs for background prefetch. `tokio::spawn` wants a `Future`,
+    // so the `IntoFuture` conversion is explicit here; `.await` does it implicitly.
+    use std::future::IntoFuture;
+    let handle = tokio::spawn(client(&server).tones().query("plexi").into_future());
+    handle.await.unwrap().unwrap();
 }

@@ -204,7 +204,7 @@ fn authorize_url_omits_unset_options() {
 
 #[test]
 fn authorize_url_serializes_scoping_options() {
-    use tone3000::{AuthorizeOptions, Format, Gear, Prompt, authorize_url};
+    use tone3000::{ArchitectureVersion, AuthorizeOptions, Format, Gear, Prompt, authorize_url};
 
     let url = authorize_url(
         "t3k_pub_x",
@@ -215,7 +215,7 @@ fn authorize_url_serializes_scoping_options() {
         AuthorizeOptions {
             gears: vec![Gear::Amp, Gear::Pedal],
             format: Some(Format::Nam),
-            architecture: Some(2),
+            architecture: Some(ArchitectureVersion::V2),
             menubar: true,
             login_hint: Some("a@b.com".into()),
             preview: true,

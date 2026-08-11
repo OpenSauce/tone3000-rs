@@ -5,7 +5,7 @@ use url::Url;
 
 use crate::client::DEFAULT_BASE_URL;
 use crate::error::{Error, Result};
-use crate::models::{Format, Gear, ModelId, Tokens, ToneId};
+use crate::models::{ArchitectureVersion, Format, Gear, ModelId, Tokens, ToneId};
 
 /// The `prompt` parameter selecting which OAuth flow to start.
 #[derive(Debug, Clone)]
@@ -33,7 +33,7 @@ pub struct AuthorizeOptions {
     /// Restrict the catalog to a single model format.
     pub format: Option<Format>,
     /// Restrict to a neural architecture version.
-    pub architecture: Option<u32>,
+    pub architecture: Option<ArchitectureVersion>,
     /// UI hint: render TONE3000 in menubar mode.
     pub menubar: bool,
     /// Pre-fill the sign-in identifier.
@@ -93,8 +93,8 @@ pub fn authorize_url(
         if let Some(format) = &options.format {
             q.append_pair("format", format.as_str());
         }
-        if let Some(arch) = options.architecture {
-            q.append_pair("architecture", &arch.to_string());
+        if let Some(arch) = &options.architecture {
+            q.append_pair("architecture", arch.as_str());
         }
         if options.menubar {
             q.append_pair("menubar", "true");

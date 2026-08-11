@@ -5,6 +5,7 @@ use super::ids::{MakeId, TagId, ToneId, UserId};
 
 /// A user embedded in a tone payload.
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[non_exhaustive]
 pub struct EmbeddedUser {
     pub id: UserId,
     #[serde(default)]
@@ -17,6 +18,7 @@ pub struct EmbeddedUser {
 
 /// A gear make. `id` is absent in search results (RPC) and present in tone detail.
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[non_exhaustive]
 pub struct Make {
     #[serde(default)]
     pub id: Option<MakeId>,
@@ -26,6 +28,7 @@ pub struct Make {
 
 /// A tag. `id` is absent in search results (RPC) and present in tone detail.
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[non_exhaustive]
 pub struct Tag {
     #[serde(default)]
     pub id: Option<TagId>,
@@ -35,6 +38,7 @@ pub struct Tag {
 
 /// A community tone (a capture/profile grouping one or more models).
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[non_exhaustive]
 pub struct Tone {
     pub id: ToneId,
     pub user_id: UserId,

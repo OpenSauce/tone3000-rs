@@ -5,11 +5,12 @@ use std::time::Duration;
 #[non_exhaustive]
 pub enum Error {
     /// Transport-level failure (DNS, TLS, connection, timeout).
-    #[error("http transport error: {0}")]
+    #[error(transparent)]
     Http(#[from] HttpError),
 
     /// Non-2xx response that does not map to a more specific variant.
     #[error("unexpected status {code}: {body}")]
+    #[non_exhaustive]
     Status { code: u16, body: String },
 
     /// 401 Unauthorized from the API.
@@ -22,6 +23,7 @@ pub enum Error {
 
     /// 429 Too Many Requests. `retry_after` is set if the server sent `Retry-After`.
     #[error("rate limited (429)")]
+    #[non_exhaustive]
     RateLimited { retry_after: Option<Duration> },
 
     /// An API call was made on a client with no access token (and no refresh token to
@@ -43,6 +45,7 @@ pub enum Error {
 
     /// OAuth token endpoint returned an error body.
     #[error("oauth error: {error}")]
+    #[non_exhaustive]
     Oauth {
         error: String,
         description: Option<String>,
@@ -79,11 +82,6 @@ impl HttpError {
     pub fn is_connect(&self) -> bool {
         self.0.is_connect()
     }
-
-    /// The status code, when the failure carried one.
-    pub fn status(&self) -> Option<u16> {
-        self.0.status().map(|s| s.as_u16())
-    }
 }
 
 impl std::fmt::Display for HttpError {
@@ -98,15 +96,23 @@ impl std::error::Error for HttpError {
     }
 }
 
-impl From<reqwest::Error> for HttpError {
-    fn from(e: reqwest::Error) -> Self {
+impl HttpError {
+    /// Wrap a transport error. Crate-internal: a public `From<reqwest::Error>` would put
+    /// reqwest back in the semver surface, which is the whole point of this newtype.
+    pub(crate) fn new(e: reqwest::Error) -> Self {
         HttpError(e)
     }
 }
 
-impl From<reqwest::Error> for Error {
-    fn from(e: reqwest::Error) -> Self {
-        Error::Http(HttpError(e))
+/// Convert a transport result, for use at `?` sites that would otherwise need
+/// `From<reqwest::Error>`.
+pub(crate) trait TransportResultExt<T> {
+    fn transport(self) -> Result<T>;
+}
+
+impl<T> TransportResultExt<T> for std::result::Result<T, reqwest::Error> {
+    fn transport(self) -> Result<T> {
+        self.map_err(|e| Error::Http(HttpError::new(e)))
     }
 }
 

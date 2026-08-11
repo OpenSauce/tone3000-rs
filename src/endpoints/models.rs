@@ -6,7 +6,7 @@ use futures_util::StreamExt;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 use crate::client::Client;
-use crate::error::Result;
+use crate::error::{Result, TransportResultExt};
 use crate::http::json;
 use crate::models::{ArchitectureVersion, Model, ModelId, Page, ToneId};
 
@@ -15,7 +15,7 @@ impl Client {
     ///
     /// A tone's detail response does not embed its models, so a detail screen is this
     /// call plus [`Client::tone`].
-    pub fn models(&self, tone_id: ToneId) -> ModelList<'_> {
+    pub fn models(&self, tone_id: ToneId) -> ModelList {
         ModelList::new(self, tone_id)
     }
 
@@ -28,9 +28,16 @@ impl Client {
 
     /// Download a model's file into memory.
     pub async fn download_model(&self, model: &Model) -> Result<Bytes> {
-        let req = self.http.get(&model.model_url);
+        self.download_url(&model.model_url).await
+    }
+
+    /// Download a model file from a `model_url` directly.
+    ///
+    /// For callers that persisted a URL rather than the whole [`Model`].
+    pub async fn download_url(&self, model_url: &str) -> Result<Bytes> {
+        let req = self.http.get(model_url);
         let resp = self.send(req).await?;
-        Ok(resp.bytes().await?)
+        resp.bytes().await.transport()
     }
 
     /// Download a model's `.nam` file as a JSON string.
@@ -50,12 +57,20 @@ impl Client {
     where
         W: AsyncWrite + Unpin,
     {
-        let req = self.http.get(&model.model_url);
+        self.download_url_to(&model.model_url, writer).await
+    }
+
+    /// Stream a model file from a `model_url` to `writer`, returning bytes written.
+    pub async fn download_url_to<W>(&self, model_url: &str, writer: &mut W) -> Result<u64>
+    where
+        W: AsyncWrite + Unpin,
+    {
+        let req = self.http.get(model_url);
         let resp = self.send(req).await?;
         let mut stream = resp.bytes_stream();
         let mut written: u64 = 0;
         while let Some(chunk) = stream.next().await {
-            let chunk = chunk?;
+            let chunk = chunk.transport()?;
             writer.write_all(&chunk).await?;
             written += chunk.len() as u64;
         }
@@ -67,18 +82,20 @@ impl Client {
 /// A pending listing of a tone's models, built by [`Client::models`].
 ///
 /// Await it directly to send the request; every method is optional.
-pub struct ModelList<'a> {
-    client: &'a Client,
+#[must_use = "a request builder does nothing until awaited"]
+#[derive(Clone)]
+pub struct ModelList {
+    client: Client,
     tone_id: ToneId,
     page: Option<u32>,
     page_size: Option<u32>,
     architecture: Option<ArchitectureVersion>,
 }
 
-impl<'a> ModelList<'a> {
-    fn new(client: &'a Client, tone_id: ToneId) -> Self {
+impl ModelList {
+    fn new(client: &Client, tone_id: ToneId) -> Self {
         Self {
-            client,
+            client: client.clone(),
             tone_id,
             page: None,
             page_size: None,
@@ -124,11 +141,22 @@ impl<'a> ModelList<'a> {
     }
 }
 
-impl<'a> IntoFuture for ModelList<'a> {
+impl IntoFuture for ModelList {
     type Output = Result<Page<Model>>;
-    type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
+    type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send>>;
 
     fn into_future(self) -> Self::IntoFuture {
         Box::pin(self.send())
+    }
+}
+
+impl std::fmt::Debug for ModelList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ModelList")
+            .field("tone_id", &self.tone_id)
+            .field("page", &self.page)
+            .field("page_size", &self.page_size)
+            .field("architecture", &self.architecture)
+            .finish_non_exhaustive()
     }
 }

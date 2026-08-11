@@ -5,6 +5,7 @@ use serde::Deserialize;
 /// A page of results plus pagination metadata, matching the API's
 /// `{ data, page, page_size, total, total_pages }` envelope.
 #[derive(Debug, Clone, Deserialize)]
+#[non_exhaustive]
 pub struct Page<T> {
     #[serde(default = "Vec::new")]
     pub data: Vec<T>,

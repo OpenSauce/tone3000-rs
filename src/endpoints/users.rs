@@ -8,7 +8,7 @@ use crate::models::{Page, PublicUser, User, UserSort};
 
 impl Client {
     /// The public user directory, sorted by metrics.
-    pub fn users(&self) -> UserList<'_> {
+    pub fn users(&self) -> UserList {
         UserList::new(self)
     }
 
@@ -23,18 +23,20 @@ impl Client {
 /// A pending listing of the public user directory, built by [`Client::users`].
 ///
 /// Await it directly to send the request; every method is optional.
-pub struct UserList<'a> {
-    client: &'a Client,
+#[must_use = "a request builder does nothing until awaited"]
+#[derive(Clone)]
+pub struct UserList {
+    client: Client,
     query: Option<String>,
     sort: Option<UserSort>,
     page: Option<u32>,
     page_size: Option<u32>,
 }
 
-impl<'a> UserList<'a> {
-    fn new(client: &'a Client) -> Self {
+impl UserList {
+    fn new(client: &Client) -> Self {
         Self {
-            client,
+            client: client.clone(),
             query: None,
             sort: None,
             page: None,
@@ -88,11 +90,22 @@ impl<'a> UserList<'a> {
     }
 }
 
-impl<'a> IntoFuture for UserList<'a> {
+impl IntoFuture for UserList {
     type Output = Result<Page<PublicUser>>;
-    type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send + 'a>>;
+    type IntoFuture = Pin<Box<dyn Future<Output = Self::Output> + Send>>;
 
     fn into_future(self) -> Self::IntoFuture {
         Box::pin(self.send())
+    }
+}
+
+impl std::fmt::Debug for UserList {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UserList")
+            .field("query", &self.query)
+            .field("sort", &self.sort)
+            .field("page", &self.page)
+            .field("page_size", &self.page_size)
+            .finish_non_exhaustive()
     }
 }
