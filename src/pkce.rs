@@ -9,7 +9,10 @@ use sha2::{Digest, Sha256};
 /// `challenge` in the authorize URL.
 #[derive(Debug, Clone)]
 pub struct Pkce {
+    /// The secret. Keep it in memory and send it to
+    /// [`Client::exchange_code`](crate::Client::exchange_code); it never goes in a URL.
     pub verifier: String,
+    /// The public hash, sent as `code_challenge` in the authorize URL.
     pub challenge: String,
 }
 

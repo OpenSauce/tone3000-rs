@@ -7,14 +7,22 @@ use serde::Deserialize;
 #[derive(Debug, Clone, Deserialize)]
 #[non_exhaustive]
 pub struct Page<T> {
+    /// The results on this page.
     #[serde(default = "Vec::new")]
     pub data: Vec<T>,
+    /// Which page this is, counting from 1.
     #[serde(default)]
     pub page: u32,
+    /// How many results a full page holds.
     #[serde(default)]
     pub page_size: u32,
+    /// Matching results across all pages.
     #[serde(default)]
     pub total: u64,
+    /// How many pages the results span.
+    ///
+    /// Defaults to 0 if the API omits it, which makes [`has_next`](Self::has_next) report
+    /// `false` — so a `while page.has_next()` loop stops rather than spinning.
     #[serde(default)]
     pub total_pages: u32,
 }

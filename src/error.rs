@@ -11,7 +11,12 @@ pub enum Error {
     /// Non-2xx response that does not map to a more specific variant.
     #[error("unexpected status {code}: {body}")]
     #[non_exhaustive]
-    Status { code: u16, body: String },
+    Status {
+        /// The HTTP status code.
+        code: u16,
+        /// The response body, for diagnosis. May be empty.
+        body: String,
+    },
 
     /// 401 Unauthorized from the API.
     #[error("unauthorized (401)")]
@@ -24,7 +29,10 @@ pub enum Error {
     /// 429 Too Many Requests. `retry_after` is set if the server sent `Retry-After`.
     #[error("rate limited (429)")]
     #[non_exhaustive]
-    RateLimited { retry_after: Option<Duration> },
+    RateLimited {
+        /// How long the server asked you to wait, if it sent `Retry-After`.
+        retry_after: Option<Duration>,
+    },
 
     /// An API call was made on a client with no access token (and no refresh token to
     /// mint one). Every TONE3000 endpoint requires a Bearer access token.
@@ -47,7 +55,9 @@ pub enum Error {
     #[error("oauth error: {error}")]
     #[non_exhaustive]
     Oauth {
+        /// The machine-readable OAuth error code, e.g. `invalid_grant`.
         error: String,
+        /// The server's human-readable explanation, when it sent one.
         description: Option<String>,
     },
 }
