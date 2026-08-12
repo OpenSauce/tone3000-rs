@@ -13,4 +13,32 @@ jobs:
           components: rustfmt, clippy
       - run: cargo fmt --all -- --check
       - run: cargo clippy --all-targets --all-features -- -D warnings
-      - run: cargo test --all-features
+      - run: cargo test --all-features --locked
+
+  docs:
+    # docs.rs builds with the same lints. A broken intra-doc link is a hard error there,
+    # so without this job a bad link ships as a red "build failed" page on the release.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo doc --no-deps --all-features
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+  package:
+    # Catch packaging breakage on the PR rather than on release day.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo publish --dry-run --locked
+
+  msrv:
+    # Only `cargo check` on the library: dev-dependencies (wiremock 0.6) need 1.88, and
+    # they are not part of what a consumer compiles.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.86
+      - run: cargo check --all-features --locked

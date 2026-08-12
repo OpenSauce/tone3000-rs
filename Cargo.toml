@@ -2,11 +2,17 @@
 name = "tone3000"
 version = "0.1.0"
 edition = "2024"
+# Set by url -> idna_adapter -> icu_*, not by this crate's own code. Verified with
+# `cargo msrv`. An MSRV bump is a minor version bump.
+rust-version = "1.86"
 license = "MIT"
 description = "Async Rust client for the TONE3000 API (v1)"
 repository = "https://github.com/OpenSauce/tone3000-rs"
 keywords = ["tone3000", "nam", "neural-amp-modeler", "guitar", "api"]
 categories = ["api-bindings"]
+# Keep the published crate to what a consumer can use. tests/ and examples/ stay:
+# they are documentation.
+exclude = [".github/", "scripts/", "Makefile", "CLAUDE.md", "docs/"]
 
 [dependencies]
 reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "rustls", "form", "query"] }
