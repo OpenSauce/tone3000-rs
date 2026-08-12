@@ -10,7 +10,16 @@
 use tone3000::{ArchitectureVersion, Client, Gear, ToneSort};
 
 #[tokio::main]
-async fn main() -> tone3000::Result<()> {
+async fn main() {
+    // Print the crate's Display, not the derived Debug a `Result`-returning
+    // main would dump.
+    if let Err(e) = run().await {
+        eprintln!("error: {e}");
+        std::process::exit(1);
+    }
+}
+
+async fn run() -> tone3000::Result<()> {
     let key = std::env::var("T3K_PUB_KEY").expect("set T3K_PUB_KEY (TONE3000 Settings → API Keys)");
     let access = std::env::var("T3K_ACCESS_TOKEN")
         .expect("set T3K_ACCESS_TOKEN — run `cargo run --example oauth_desktop` to get one");
@@ -73,13 +82,17 @@ async fn main() -> tone3000::Result<()> {
             .map(|m| m.name.as_str())
             .collect::<Vec<_>>()
     );
+    // `models_count` from tone detail is the v1 count alone, so it would read as
+    // "112 total: 112 v1, 111 v2". Add the per-architecture fields for a real total.
+    let total =
+        tone.a1_models_count + tone.a2_models_count + tone.irs_count + tone.custom_models_count;
     println!(
-        "  models     {} total: {} v1, {} v2, {} IR, {} custom",
-        tone.models_count,
-        tone.a1_models_count,
-        tone.a2_models_count,
-        tone.irs_count,
-        tone.custom_models_count
+        "  models     {} across architectures: {} v1, {} v2, {} IR, {} custom",
+        total, tone.a1_models_count, tone.a2_models_count, tone.irs_count, tone.custom_models_count
+    );
+    println!(
+        "             (tone.models_count reads {} here — detail returns the v1 count)",
+        tone.models_count
     );
 
     // 4. Models. The API serves one architecture at a time and defaults to v1, so asking

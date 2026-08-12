@@ -21,7 +21,16 @@ use tone3000::{AuthorizeOptions, Client, Prompt, oauth, pkce};
 const REDIRECT_URI: &str = "http://localhost:8765/callback";
 
 #[tokio::main]
-async fn main() -> tone3000::Result<()> {
+async fn main() {
+    // Print the crate's Display, not the derived Debug a `Result`-returning
+    // main would dump.
+    if let Err(e) = run().await {
+        eprintln!("error: {e}");
+        std::process::exit(1);
+    }
+}
+
+async fn run() -> tone3000::Result<()> {
     let key = std::env::var("T3K_PUB_KEY")
         .expect("set T3K_PUB_KEY to your publishable key (TONE3000 Settings → API Keys)");
 
@@ -43,14 +52,17 @@ async fn main() -> tone3000::Result<()> {
 
     println!("Open this URL and authorize:\n\n{url}\n");
     println!("Waiting for the redirect on {REDIRECT_URI} ...");
+    // Blocking IO inside an async main is fine for a one-shot CLI; a real app would run
+    // its listener off the runtime.
 
     let (code, returned_state) = wait_for_callback();
 
-    // Verify before trusting the code.
-    assert_eq!(
-        returned_state, state,
-        "state mismatch — discarding this code"
-    );
+    // Verify before trusting the code. A mismatch means this redirect did not come from
+    // the flow we started, so the code is discarded rather than exchanged.
+    if returned_state != state {
+        eprintln!("state mismatch — discarding this authorization code");
+        std::process::exit(1);
+    }
 
     let client = Client::builder(&key).build();
     let tokens = client
@@ -80,19 +92,32 @@ async fn main() -> tone3000::Result<()> {
 /// it, and reply with something human-readable so the browser tab is not left blank.
 fn wait_for_callback() -> (String, String) {
     let listener = TcpListener::bind("127.0.0.1:8765").expect("port 8765 is free");
-    let (mut stream, _) = listener.accept().expect("accepts the redirect");
 
-    let mut request_line = String::new();
-    BufReader::new(&stream)
-        .read_line(&mut request_line)
-        .expect("reads the request line");
-
-    // "GET /callback?code=...&state=... HTTP/1.1"
-    let target = request_line
-        .split_whitespace()
-        .nth(1)
-        .expect("request line has a target");
-    let query = target.split_once('?').map(|(_, q)| q).unwrap_or_default();
+    // Browsers open speculative connections that carry no request, so keep accepting
+    // until one actually delivers the redirect.
+    let (mut stream, query) = loop {
+        let Ok((stream, _)) = listener.accept() else {
+            continue;
+        };
+        let mut request_line = String::new();
+        if BufReader::new(&stream)
+            .read_line(&mut request_line)
+            .is_err()
+        {
+            continue;
+        }
+        // "GET /callback?code=...&state=... HTTP/1.1"
+        let Some(target) = request_line.split_whitespace().nth(1) else {
+            continue;
+        };
+        let Some((_, q)) = target.split_once('?') else {
+            continue;
+        };
+        if q.contains("code=") {
+            break (stream, q.to_string());
+        }
+    };
+    let query = query.as_str();
 
     let mut code = None;
     let mut state = None;
@@ -124,13 +149,16 @@ fn percent_decode(s: &str) -> String {
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
     while i < bytes.len() {
-        if bytes[i] == b'%'
-            && i + 2 < bytes.len()
-            && let Ok(byte) = u8::from_str_radix(&String::from_utf8_lossy(&bytes[i + 1..i + 3]), 16)
-        {
-            out.push(byte);
-            i += 3;
-            continue;
+        // Deliberately nested rather than a let-chain: let-chains need Rust 1.88 and
+        // this crate advertises MSRV 1.86.
+        #[allow(clippy::collapsible_if)]
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let Ok(byte) = u8::from_str_radix(&String::from_utf8_lossy(&bytes[i + 1..i + 3]), 16)
+            {
+                out.push(byte);
+                i += 3;
+                continue;
+            }
         }
         out.push(bytes[i]);
         i += 1;

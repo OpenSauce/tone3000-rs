@@ -13,7 +13,16 @@
 use tone3000::{ArchitectureVersion, Client, Format, ToneSort};
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() {
+    // Print the crate's Display, not the derived Debug a `Result`-returning
+    // main would dump.
+    if let Err(e) = run().await {
+        eprintln!("error: {e}");
+        std::process::exit(1);
+    }
+}
+
+async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let key = std::env::var("T3K_PUB_KEY").expect("set T3K_PUB_KEY");
     let access = std::env::var("T3K_ACCESS_TOKEN")
         .expect("set T3K_ACCESS_TOKEN — run `cargo run --example oauth_desktop` to get one");

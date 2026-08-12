@@ -5,52 +5,39 @@
 [![CI](https://github.com/OpenSauce/tone3000-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/OpenSauce/tone3000-rs/actions/workflows/ci.yml)
 
 Async Rust client for the [TONE3000](https://www.tone3000.com) API (v1): browse and search
-the community tone library, read metadata, download `.nam` and IR files, and authenticate
-users with OAuth 2.0 + PKCE.
+the community tone library, download `.nam` and IR files, and authenticate users with
+OAuth 2.0 + PKCE.
 
 Pairs with [`nam-rs`](https://github.com/OpenSauce/nam-rs), which runs the models this
-crate downloads — together they put the whole TONE3000 library inside an amp sim.
+crate downloads.
 
 ```console
 $ cargo add tone3000
+$ cargo add tokio -F macros,rt-multi-thread   # the snippets below are async
 ```
-
-The crate is `tone3000`; the repository is `tone3000-rs`, following the Rust habit of
-suffixing repo names. Nothing you type says `-rs`.
 
 ## Read this first
 
-**Every endpoint requires an end-user OAuth login.** There is no anonymous access and no
-app-key mode. Searching the public library needs a user access token exactly as much as
-reading that user's favourites does. Your publishable key (`t3k_pub_…`) is the OAuth
-`client_id`, not a credential — a call without an access token fails with
-`Error::Unauthenticated` before it reaches the network.
+**Every endpoint requires an end-user OAuth login.** There is no anonymous access.
+Searching the public library needs a user access token exactly as much as reading that
+user's favourites does. The publishable key (`t3k_pub_…`) is the OAuth `client_id`, not a
+credential — a call without an access token fails with `Error::Unauthenticated` before it
+reaches the network.
 
-If your product can't put a user through a browser login, this API isn't usable. That's
-worth knowing now rather than twenty lines in.
+If your product can't put a user through a browser login, this API isn't usable.
 
 ## Concepts
 
-Three things are called "model" across these two crates. The pipeline tells them apart:
+| Type | What it is |
+|---|---|
+| `Tone` | A capture project: one piece of gear, captured once, published with a title and licence. Not downloadable itself. |
+| `Model` | One downloadable file belonging to a tone, at a given size and architecture. Six models is six variants of one capture, not six amps. |
+| `Make` | The real-world gear captured, e.g. "Mesa Boogie Badlander". |
+| `Size` | The CPU/quality trade-off (`standard`, `lite`, `feather`, `nano`, `custom`), not a byte count. |
 
-```text
-Tone ──has many──> Model ──model_url──> bytes ──> nam_rs::NamModel ──> nam_rs::Model
-(the capture        (one                (the      (the parsed          (the loaded
- project)            downloadable        file)     file)                inference engine)
-                     variant)
-```
-
-- **Tone** — a community capture project: one piece of gear, captured once, published with
-  a title and a licence. Not downloadable itself.
-- **Model** — one downloadable file belonging to a tone, at a particular size and
-  architecture. A tone with six models is six variants of the same capture, not six
-  different amps.
-- **Make** — the real-world gear captured, e.g. "Mesa Boogie Badlander".
-- **Size** — the CPU/quality trade-off (`standard`, `lite`, `feather`, `nano`), not a byte
-  count.
-
-Names here mirror the API's own vocabulary deliberately, so what you read in TONE3000's
-docs is what you type here.
+A tone has many models; a model has a `model_url` you download. `nam-rs` parses those bytes
+into a `NamModel` and loads it into a `nam_rs::Model` you can run audio through — so "model"
+means something different in each crate. Fully qualify it in code using both.
 
 ## Quick start
 
@@ -60,10 +47,9 @@ use tone3000::{Client, ToneSort};
 #[tokio::main]
 async fn main() -> tone3000::Result<()> {
     let client = Client::builder("t3k_pub_your_key")
-        .access_token("user_access_token") // see Authentication below
+        .access_token("user_access_token") // see Authentication
         .build();
 
-    // A landing page: the most-downloaded tones, 24 at a time.
     let page = client
         .tones()
         .sort(ToneSort::DownloadsAllTime)
@@ -71,186 +57,153 @@ async fn main() -> tone3000::Result<()> {
         .await?;
 
     for tone in &page.data {
-        println!("{} — {} models, {} downloads", tone.title, tone.models_count, tone.downloads_count);
+        println!("{} — {} downloads", tone.title, tone.downloads_count);
     }
-    println!("page {} of {}, more: {}", page.page, page.total_pages, page.has_next());
+    println!("page {} of {}", page.page, page.total_pages);
     Ok(())
 }
 ```
 
-`client.tones()` is both browse and search — add `.query("plexi")` and it becomes a search.
-Every filter is optional and chains:
+`client.tones()` is browse and search both — add `.query("plexi")` and it becomes a search.
+Filters are optional and chain:
 
 ```rust,no_run
-# async fn run(client: tone3000::Client) -> tone3000::Result<()> {
-use tone3000::{Format, Gear, Size};
+use tone3000::{Client, Format, Gear, Size};
 
-let page = client
-    .tones()
-    .query("plexi")
-    .gear(Gear::Amp)          // repeatable; multiple values are OR'd
-    .format(Format::Nam)      // filter for IRs here, not through gear
-    .size(Size::Standard)
-    .make("Marshall")         // exact match — see the caveat below
-    .page_size(50)
-    .await?;
-# Ok(())
-# }
+#[tokio::main]
+async fn main() -> tone3000::Result<()> {
+    let client = Client::builder("t3k_pub_your_key").access_token("token").build();
+
+    let page = client
+        .tones()
+        .query("plexi")
+        .gear(Gear::Amp)      // repeatable; multiple values are OR'd
+        .format(Format::Nam)  // filter for IRs here, not through gear
+        .size(Size::Standard)
+        .make("Marshall")     // exact match, not substring
+        .await?;
+
+    println!("{} matches", page.total);
+
+    if page.has_next() {
+        let next = client.tones().query("plexi").page(page.page + 1).await?;
+        println!("next page has {}", next.data.len());
+    }
+    Ok(())
+}
 ```
-
-Requests are builders that implement `IntoFuture`: nothing is sent until you `.await`. They
-are `Clone`, so a configured search can walk its own pages.
-
-> **Caveat:** `tag`, `make` and `creator` match **exactly**, not by substring. The `/makes`
-> and `/tags` endpoints that would let you discover valid values aren't implemented yet —
-> see [#11](https://github.com/OpenSauce/tone3000-rs/issues/11).
 
 ## Authentication
 
-Get a publishable key from TONE3000 **Settings → API Keys**, and register your redirect
-URI there (localhost origins are allowed in development). Then run OAuth 2.0 + PKCE. This
-crate owns the token exchange; your app owns the redirect transport, because a desktop
-loopback, a plugin host and a web callback are genuinely different problems.
+Get a publishable key from TONE3000 **Settings → API Keys** and register your redirect URI
+there; localhost is allowed in development. This crate handles the token exchange, and your
+app owns the redirect, because a desktop loopback, a plugin host and a web callback are
+different problems.
 
 ```rust,no_run
-# fn run() -> tone3000::Result<()> {
-use tone3000::{oauth, pkce, AuthorizeOptions, Prompt};
+use tone3000::{AuthorizeOptions, Client, Prompt, oauth, pkce};
 
-let pkce = pkce::generate();
-let state = "an-unguessable-value-you-store"; // verify it on the callback
+#[tokio::main]
+async fn main() -> tone3000::Result<()> {
+    let pkce = pkce::generate();
+    let state = "an-unguessable-value-you-store";
 
-let url = oauth::authorize_url(
-    "t3k_pub_your_key",
-    "http://localhost:8765/callback",
-    &pkce.challenge,
-    state,
-    Prompt::Standard,
-    AuthorizeOptions::default(),
-);
-println!("open this: {url}");
-# Ok(())
-# }
+    let url = oauth::authorize_url(
+        "t3k_pub_your_key",
+        "http://localhost:8765/callback",
+        &pkce.challenge,
+        state,
+        Prompt::Standard,
+        AuthorizeOptions::default(),
+    );
+    println!("open this: {url}");
+
+    // Capture `code` from the redirect, and check `state` matches before trusting it.
+    let code = "from_the_redirect";
+
+    let client = Client::builder("t3k_pub_your_key").build();
+    let tokens = client
+        .exchange_code(code, &pkce.verifier, "http://localhost:8765/callback")
+        .await?;
+
+    println!("{}", tokens.access_token);
+    Ok(())
+}
 ```
 
-Open that URL, capture the `code` from the redirect, verify `state` matches, then exchange:
+`Prompt::SelectTone`, `Prompt::LoadTone { tone_id }` and `Prompt::LoadModel { model_id }`
+hand the browsing to TONE3000's own UI instead, which saves building one.
+
+[`examples/oauth_desktop.rs`](https://github.com/OpenSauce/tone3000-rs/blob/main/examples/oauth_desktop.rs) does this end to end with a real
+loopback listener, in std only.
+
+**Refresh tokens rotate.** Each refresh invalidates the previous one, so store every token
+you are handed or the session dies:
 
 ```rust,no_run
-# async fn run(client: tone3000::Client, code: &str, pkce: tone3000::Pkce) -> tone3000::Result<()> {
-let tokens = client
-    .exchange_code(code, &pkce.verifier, "http://localhost:8765/callback")
-    .await?;
-# Ok(())
-# }
-```
-
-The `examples/oauth_desktop.rs` example does all of this end to end with a real loopback
-listener, in about eighty lines and no extra dependencies.
-
-### Keeping a session alive
-
-**Refresh tokens rotate.** Every refresh returns a new one and invalidates the old, so
-persisting only the first token you saw will kill the session. Register a callback and
-store whatever it hands you:
-
-```rust,no_run
-# fn run() {
 use tone3000::Client;
 
-let client = Client::builder("t3k_pub_your_key")
-    .access_token("stored_access_token")
-    .refresh_token("stored_refresh_token")
-    .expires_at(1_800_000_000) // unix seconds; without it, refresh is reactive only
-    .auto_refresh(true)        // refresh before expiry, and retry once on a 401
-    .on_tokens_changed(|tokens| {
-        // persist tokens.access_token and tokens.refresh_token here
-    })
-    .build();
-# }
-```
-
-`Prompt` also drives TONE3000's hosted flows — `Prompt::SelectTone` lets the user pick a
-tone in TONE3000's own UI, and `Prompt::LoadTone { tone_id }` asks them to confirm access to
-a specific one. Both save you building a browser.
-
-## Downloading models
-
-A model's file lives at its `model_url` and needs the same Bearer token as any other call.
-
-```rust,no_run
-# async fn run(client: tone3000::Client, model: tone3000::Model) -> tone3000::Result<()> {
-// In memory:
-let bytes = client.download_model(&model).await?;
-// As a JSON string, ready for a NAM loader:
-let json = client.download_model_json(&model).await?;
-// Or streamed to disk, without buffering the whole file:
-let mut file = tokio::fs::File::create("model.nam").await?;
-let written = client.download_model_to(&model, &mut file).await?;
-# Ok(())
-# }
-```
-
-If you persisted a URL rather than a whole `Model`, `download_url` and `download_url_to`
-take one directly.
-
-### One tone's models arrive one architecture at a time
-
-`GET /models` defaults to architecture 1 and has no "all" option, so `client.models(id)`
-returns only the v1 models. Tone 6298 has 112 on v1 and 111 on v2; a bare call returns 112.
-
-Worse, `models_count` means different things on different endpoints — the cross-architecture
-total in search results, the v1 count in tone detail. The same tone reports 223 via
-`tones()` and 112 via `tone()`. Build a list screen from search and a detail screen from
-detail and they will disagree.
-
-To show everything, ask for each architecture the tone reports:
-
-```rust,no_run
-# async fn run(client: tone3000::Client, tone: tone3000::Tone) -> tone3000::Result<()> {
-use tone3000::ArchitectureVersion::{Custom, V1, V2};
-
-let mut models = Vec::new();
-for (count, arch) in [
-    (tone.a1_models_count, V1),
-    (tone.a2_models_count, V2),
-    (tone.custom_models_count, Custom),
-] {
-    if count > 0 {
-        models.extend(client.models(tone.id).architecture(arch).await?.data);
-    }
+fn main() {
+    let client = Client::builder("t3k_pub_your_key")
+        .access_token("stored_access_token")
+        .refresh_token("stored_refresh_token")
+        .expires_at(1_800_000_000) // unix seconds; without it, refresh is reactive only
+        .auto_refresh(true)        // refresh near expiry, retry once on a 401
+        .on_tokens_changed(|tokens| {
+            // persist tokens.access_token and tokens.refresh_token
+        })
+        .build();
 }
-# Ok(())
-# }
 ```
 
-## Playing a tone with nam-rs
-
-This crate is transport only — it doesn't parse `.nam` internals or decide where files go.
-`nam-rs` takes it from there, loading from a JSON string or a path, so both download paths
-plug straight in:
+## Downloading
 
 ```rust,no_run
-# async fn run(client: tone3000::Client, model: tone3000::Model) -> Result<(), Box<dyn std::error::Error>> {
-// In memory: no disk round-trip.
-let json = client.download_model_json(&model).await?;
-let nam = nam_rs::NamModel::from_json_str(&json)?;
-let mut runtime = nam_rs::Model::from_nam(&nam)?;
+use tone3000::{Client, Model};
 
-let mut buffer = vec![0.0f32; 512]; // your audio, in place
-runtime.process_buffer(&mut buffer);
-# Ok(())
-# }
+async fn download(client: &Client, model: &Model) -> tone3000::Result<()> {
+    let bytes = client.download_model(model).await?;
+    let json = client.download_model_json(model).await?;
+
+    let mut file = tokio::fs::File::create("model.nam").await?;
+    client.download_model_to(model, &mut file).await?;
+    Ok(())
+}
 ```
 
-`nam-rs`'s loaders are synchronous, so call them after the download resolves, or wrap
-`NamModel::from_file` in `tokio::task::spawn_blocking` for large models.
+`download_url` and `download_url_to` take a `model_url` directly, for when you stored one
+rather than a whole `Model`.
+
+`client.models(id)` returns one architecture at a time — the API defaults to v1 and has no
+"all" option. `Client::models` documents the loop that collects them all.
+
+## With nam-rs
+
+`cargo add nam-rs`, then:
+
+```rust,no_run
+use tone3000::{Client, Model};
+
+async fn play(client: &Client, model: &Model) -> Result<(), Box<dyn std::error::Error>> {
+    let json = client.download_model_json(model).await?;
+
+    // nam-rs's loaders are synchronous: call them once the download resolves.
+    let nam = nam_rs::NamModel::from_json_str(&json)?;
+    let mut runtime = nam_rs::Model::from_nam(&nam)?;
+
+    let mut buffer = vec![0.0f32; 512];
+    runtime.process_buffer(&mut buffer);
+    Ok(())
+}
+```
 
 ## Examples
 
 | Example | Shows | Needs |
 |---|---|---|
-| [`oauth_desktop`](examples/oauth_desktop.rs) | The full PKCE flow with a loopback listener — **start here**, it produces the token the others need | `T3K_PUB_KEY` |
-| [`search_and_download`](examples/search_and_download.rs) | Browse, search, list a tone's models, download one | `T3K_PUB_KEY`, `T3K_ACCESS_TOKEN` |
-| [`play_with_nam_rs`](examples/play_with_nam_rs.rs) | Download a model and run audio through it | both, plus `--features` note in the file |
+| [`oauth_desktop`](https://github.com/OpenSauce/tone3000-rs/blob/main/examples/oauth_desktop.rs) | The PKCE flow with a loopback listener. **Start here** — it produces the token the others need | `T3K_PUB_KEY` |
+| [`search_and_download`](https://github.com/OpenSauce/tone3000-rs/blob/main/examples/search_and_download.rs) | Browse, search, tone detail, models, download | both |
+| [`play_with_nam_rs`](https://github.com/OpenSauce/tone3000-rs/blob/main/examples/play_with_nam_rs.rs) | Download a capture and run audio through it | both |
 
 ```console
 $ export T3K_PUB_KEY=t3k_pub_...
@@ -259,58 +212,47 @@ $ export T3K_ACCESS_TOKEN=...
 $ cargo run --example search_and_download
 ```
 
-## Errors
+## Errors and limits
 
-`Error` distinguishes what you'd branch on: `Unauthenticated` (no token set),
-`Unauthorized` (401), `Forbidden` (403), `RateLimited { retry_after }`, `Status { code, body }`,
-and `Http` for transport failures. Transport errors expose `is_timeout()` and `is_connect()`
-directly on `Error`, so retry logic doesn't need to match on the variant.
+`Error` separates what you would branch on: `Unauthenticated` (no token set), `Unauthorized`
+(401), `Forbidden` (403), `RateLimited { retry_after }`, `Status { code, body }`, and `Http`
+for transport failures. `Error::is_timeout()` and `Error::is_connect()` answer the usual
+retry questions without matching the variant out.
 
-The API allows **100 requests per minute** by default, and search is limited more tightly
-than that. Honour `retry_after`.
+The API allows 100 requests per minute by default, and search is limited more tightly.
+Honour `retry_after`.
 
 ## Coverage
 
-Implemented: tone search/browse, tone detail, created, favorited, model list, model detail,
+Implemented: tone search and browse, tone detail, created, favorited, model list and detail,
 model download, the user profile, the public user directory, and the OAuth token flows.
 
-Not yet implemented, tracked as issues: the homepage feeds `/tones/trending` and
-`/tones/latest` ([#9](https://github.com/OpenSauce/tone3000-rs/issues/9)),
-`/tones/downloaded` ([#10](https://github.com/OpenSauce/tone3000-rs/issues/10)), the
-`/makes` and `/tags` taxonomies ([#11](https://github.com/OpenSauce/tone3000-rs/issues/11)),
-and surfacing the API's deprecation headers
-([#12](https://github.com/OpenSauce/tone3000-rs/issues/12)). `GET /tones/download` is
-restricted to approved partners and 403s for everyone else, so it is deliberately absent —
-download individual models via `model_url` instead.
-
-## Before you ship an integration
-
-TONE3000 publishes [Design Requirements and Commercial
-Terms](https://www.tone3000.com/api) covering entry-point placement, a partnership splash
-before sign-in, and creator attribution. They apply to your product, not to this crate, and
-they are easier to build in than to retrofit.
-
-Check `tone.license` before redistributing a downloaded model or shipping one with your app.
+Not yet implemented, tracked as issues: `/tones/trending` and `/tones/latest`
+([#9](https://github.com/OpenSauce/tone3000-rs/issues/9)), `/tones/downloaded`
+([#10](https://github.com/OpenSauce/tone3000-rs/issues/10)), `/makes` and `/tags`
+([#11](https://github.com/OpenSauce/tone3000-rs/issues/11)), and the API's deprecation
+headers ([#12](https://github.com/OpenSauce/tone3000-rs/issues/12)). `GET /tones/download`
+is restricted to approved partners, so it is deliberately absent — download individual
+models via `model_url`.
 
 ## Compatibility
 
-- **MSRV 1.86.** Set by `url` → `idna_adapter` → `icu_*`, not by our own code. An MSRV bump
-  is a minor version bump.
-- Async only, on `tokio`. A `blocking` feature is a possible followup.
-- TLS via `rustls`, no OpenSSL.
+- **MSRV 1.86**, set by `url` → `idna_adapter` → `icu_*`. An MSRV bump is a minor bump.
+- Async only, on `tokio`. TLS via `rustls`, no OpenSSL.
+
+Your integration must also follow TONE3000's
+[Design Requirements and Commercial Terms](https://www.tone3000.com/api), and you should
+check `tone.license` before redistributing a model.
 
 ## Development
 
-| Command | What it does | Needs credentials |
+| Command | What it does | Credentials |
 |---|---|---|
-| `cargo test` | Unit + wiremock suites. Live tests are `#[ignore]`d | No |
+| `cargo test` | Unit + wiremock suites; live tests are `#[ignore]`d | No |
 | `make test-live` | Live contract and enum-vocabulary checks | Yes |
 | `make test-oauth` | Interactive OAuth bootstrap; prints a refresh token | Yes, a browser |
-| `make check-upstream` | Diffs upstream `types.ts` against a pinned SHA | No, but needs `gh` |
+| `make check-upstream` | Diffs upstream `types.ts` against a pinned SHA | Needs `gh` |
 
-`make check-upstream` also runs weekly in CI. Note that GitHub disables scheduled workflows
-after 60 days of repository inactivity.
+`make check-upstream` also runs weekly in CI.
 
-## License
-
-MIT. See [LICENSE](LICENSE).
+Licensed under MIT.

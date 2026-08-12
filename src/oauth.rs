@@ -15,12 +15,13 @@ pub enum Prompt {
     SelectTone,
     /// App names a tone; user verifies access or picks a replacement.
     LoadTone {
-        /// The tone to load.
+        /// The tone the user is asked to confirm access to. If it is unavailable they
+        /// can pick a replacement.
         tone_id: ToneId,
     },
     /// App names a model; user verifies access (no replacement offered).
     LoadModel {
-        /// The model to load.
+        /// The model the user is asked to confirm access to.
         model_id: ModelId,
     },
     /// Long-lived full API access; no `prompt` parameter is sent.

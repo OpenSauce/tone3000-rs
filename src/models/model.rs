@@ -42,8 +42,8 @@ pub struct Model {
     pub size: Option<Size>,
     /// Which generation of the NAM architecture trained this model.
     ///
-    /// Worth surfacing in a UI: a player built against one architecture may not load
-    /// another.
+    /// Determines which models [`Client::models`](crate::Client::models) returns: it
+    /// serves one architecture at a time and defaults to v1.
     #[serde(default)]
     pub architecture_version: Option<ArchitectureVersion>,
 }

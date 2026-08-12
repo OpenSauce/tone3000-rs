@@ -19,8 +19,9 @@ pub struct Tokens {
     pub refresh_token: Option<String>,
     /// Lifetime of the access token in seconds from issue.
     ///
-    /// Feed it to [`ClientBuilder::expires_at`] when restoring a stored session, or
-    /// proactive refresh cannot know when to fire.
+    /// [`ClientBuilder::expires_at`] wants an absolute unix timestamp, not this duration:
+    /// add it to the current unix time and pass the sum. Without it, proactive refresh
+    /// cannot know when to fire and the client only refreshes reactively on a 401.
     ///
     /// [`ClientBuilder::expires_at`]: crate::ClientBuilder::expires_at
     #[serde(default)]

@@ -20,7 +20,10 @@ macro_rules! open_enum {
         }
 
         impl $name {
-            /// The wire string for this value.
+            /// The exact string this value takes on the wire, e.g. `"amp-cab"`.
+            ///
+            /// Every variant round-trips: parsing this string yields the same value back,
+            /// including unrecognised ones held in `Other`.
             pub fn as_str(&self) -> &str {
                 match self {
                     $( $name::$variant => $wire, )+
@@ -94,7 +97,6 @@ open_enum!(
         Nam => "nam",
         /// An impulse response: a convolution file, not a neural capture.
         Ir => "ir",
-        /// AIDA-X
         /// AIDA-X, the LV2/plugin neural format.
         AidaX => "aida-x",
         /// An Amp Academy pedal snapshot.
@@ -129,13 +131,13 @@ open_enum!(
 open_enum!(
     /// Model size class.
     Size {
-        /// Full quality, highest CPU cost. The default for most captures.
+        /// Full quality, highest CPU cost.
         Standard => "standard",
-        /// Slightly reduced quality for noticeably less CPU.
+        /// Reduced quality for less CPU than [`Size::Standard`].
         Lite => "lite",
-        /// Aimed at lower-powered machines and higher track counts.
+        /// Smaller again than [`Size::Lite`].
         Feather => "feather",
-        /// The smallest standard size, for the tightest CPU budgets.
+        /// The smallest standard size.
         Nano => "nano",
         /// A creator-defined size outside the standard ladder.
         Custom => "custom",
@@ -145,7 +147,8 @@ open_enum!(
 open_enum!(
     /// Neural model architecture version. `custom` covers user-supplied architectures.
     ArchitectureVersion {
-        /// The original NAM architecture.
+        /// The original NAM architecture. What `Client::models` returns unless you ask
+        /// for another.
         V1 => "1",
         /// The second-generation NAM architecture.
         V2 => "2",

@@ -5,9 +5,9 @@ use super::ids::{MakeId, TagId, ToneId, UserId};
 
 /// The creator stub attached to a [`Tone`] payload.
 ///
-/// Enough to credit and link a tone's author; fetch [`Client::users`] for full profiles.
-///
-/// [`Client::users`]: crate::Client::users
+/// Enough to credit and link a tone's author. There is no fetch-user-by-id endpoint, so
+/// this is all you get for a creator short of searching the directory
+/// ([`Client::users`](crate::Client::users)) by username.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[non_exhaustive]
 pub struct EmbeddedUser {
